@@ -1,0 +1,242 @@
+```{r include_packages7, include = FALSE}
+# This chunk ensures that the thesisdown package is
+# installed and loaded. This thesisdown package includes
+# the template files for the thesis and also two functions
+# used for labeling and referencing
+if(!require(devtools))
+  install.packages("devtools", repos = "http://cran.rstudio.com")
+if(!require(dplyr))
+    install.packages("dplyr", repos = "http://cran.rstudio.com")
+if(!require(ggplot2))
+    install.packages("ggplot2", repos = "http://cran.rstudio.com")
+if(!require(ggplot2))
+    install.packages("bookdown", repos = "http://cran.rstudio.com")
+if(!require(thesisdown)){
+  library(devtools)
+  devtools::install_github("ismayc/thesisdown")
+  }
+library(thesisdown)
+```
+
+```{r setup7, include = FALSE}
+
+# Set markdown defaults
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE, cache = TRUE)
+
+library(dplyr)
+library(kableExtra)
+
+```
+
+# Discussion {#thesisdiscussion}
+
+This thesis has taken an interdisciplinary approach to understanding how we can make use of cohort studies to improve research into digital phenotypes for mental health.
+Across the empirical research chapters, which are summarised in Table \@ref(tab:findings), we have found that linkage is both acceptable and feasible, yielding a novel dataset that has allowed us to test the utility of common methods for inferring mental health from social media.
+Since each chapter has its own discussion of strengths, limitations and future directions this overall discussion will give a broad overview of the main messages from the findings as a combined body of work.
+I first give a commentary on the potentials and limitations on three main themes: the use of cohort studies as sources of ground truth for mental health digital phenotypes, how we develop digital phenotypes for the measurement of mental health, and the issues of ethics and acceptability in these areas of research.
+I will then discuss directions for future research across the field.
+
+\newpage
+
+```{r findings}
+
+chap2_find <- "We saw that women were more likely to use social media more frequently in general, but that users of different social media platforms have different mental health profiles and are made up of different demographic groups. 
+Different well-being measures are associated differently with the outcomes of social media use frequency and platform of use. 
+\n
+In terms of Twitter in particular, both male and female Twitter users have higher rates of depression than the general sample population, but lower rates of suicidal thoughts and self-harm.
+In the areas of relatedness, satisfaction with life, optimism and gratitude, male users of Twitter have higher well-being than the general sample of men, but female Twitter users have lower well-being than the overall sample of women."
+
+chap2_imp <- "We should not assume that rates of mental health disorders are the same across all social media platforms.
+Similarly we must pay attention to the different measurements of well-being, rather than assuming one can be a proxy for all of the others. Studies should also ensure that they adjust for sex/gender in their analyses."
+
+chap3_find <- "Participants were supportive of the collection and linkage of their data to support health and social care research. 
+Having trust in the cohort was an important factor in this outcome.
+However, concerns were expressed about the collection and use of friends’ data without their knowledge. 
+When given a specific scenario of how this data could be used a sub-group did say they would agree for it to be collected. 
+Participants were most agreeable to their data being collected if it was anonymised before researchers were given access to it."
+
+chap3_imp <- "Trust is a core issue in social media data linkage programmes, with cohort studies particularly well placed to develop these programmes given their existing relationships with participants. 
+The ability to ensure that researchers would not have access to raw textual data was important to participants.
+Linkage programmes should be aware of the lack of social license for ‘blanket’ consent to collecting data that belongs to participants’ friends. 
+However, providing specific information about the data being collected and how it will be used may give enough information to allow participants to make an informed decision."
+
+chap4_find <- "19.6\\% of Twitter users in ALSPAC opted in to linking their Twitter data, and 15.3\\% were ultimately successfully linked. 
+Linked participants represented Twitter users in ALSPAC in terms of their demographics, but had marginally higher rates of depression and anxiety than the general cohort sample. Given the results from Chapter 2 the higher rates of depression could be attributed to linked participants being from the sample of Twitter users, rather than opting in to linkage.
+There was a very wide range of tweet frequencies in the linked participants, and a quarter of participants only tweeted six times in the past year. Differences in tweeting frequency were not associated with sex or generation of participants."
+  
+chap4_imp <- "The populations that agree to social media data linkage are broadly representative of the general population of Twitter users, which is positive for the generalisability of future research. 
+A feature of population representative data from Twitter is that it is highly variable in quantity, and this asymmetry in the data should be accounted for in analysis of population-level data. 
+Future data linkage programs may benefit from using face-to-face opportunities to request consent, which may result in higher consent rates."
+
+chap5_find <- "165 studies had attempted to predict individual mental health outcomes from Twitter data between 2013 and 2021, with 45\\% of all studies published in 2020 and 2021. 
+Depression and suicidality were the most common outcomes studied, with other disorders being relatively understudied and only one study considered positive well-being. 
+Only 13\\% of the datasets used had access to information about participant mental health that had not been inferred from their Twitter data.
+The quality of methodological reporting was generally poor and had not improved with time. 
+In the subset of 100 studies where inclusion of ethics was assessed, 85\\% did not include any mention of ethical considerations."
+
+chap5_imp <- "Advice from previous reviews on better reporting of methodologies and increased consideration of ethical issues does not appear to have made an impact on the research being published. 
+Without being able to compare the detail of different research questions and approaches it is not feasible to analyse patterns of what works in this area.\n
+Since most studies do not have ground truth data about the people whose data they are using there is little understanding of potential bias in the models being created. 
+Similarly, there is minimal understanding of out-of-sample performance of most proposed models.
+At present the research in this field is still highly exploratory, and requires significant attention to methodological and ethical issues in order to make progress."
+
+chap6_find <- "Here we found that whilst most positive codings of emotions are associated with improved mental health, and negative codings with worse mental health, these associations are generally not very strong. 
+These associations were contrary to some previous research on population level mental health, which we concluded was due to a lack of individual aggregation causing spurious correlations.
+We found that positive general well-being was best associated with life-style topics such as *Money*, *Health* and *Home*, rather than positive sentiment. 
+An increasing number of tweets was associated with worse mental health outcomes across depression, anxiety and general well-being. 
+Two weeks of Twitter data was broadly sufficient for inferring mental health outcomes. 
+Models predicted relatively well at a time point a few weeks into the future, and error was mostly seen between men and women, and the two generations."
+
+chap6_imp <- "Linked data from a population sample provides new perspectives on frequently studied associations, and accounts for the natural variation found in the population that is usually not captured by Twitter datasets. 
+Population-level research may benefit from aggregation of individual level tweets since variable data production may generate spurious associations. 
+Both well-being and anxiety are promising areas for future research using Twitter data."
+
+
+data.frame(
+  "Chapter" = c("2. The mental health and well-being profile of social media users", "3. Participant views on social media and its linkage to longitudinal data",
+    "4. Twitter data linkage: features of the consenting participants and their data", "5. A review of methodologies for monitoring mental health on Twitter",
+    "6. Modelling mental health using linked Twitter data"),
+  "Main Findings" = linebreak(c(chap2_find, chap3_find, chap4_find, chap5_find, chap6_find), align = "c"),
+  "Implications" = linebreak(c(chap2_imp, chap3_imp, chap4_imp, chap5_imp, chap6_imp), align = "c")) %>%
+  kableExtra::kbl(.,
+                  col.names = c("Chapter", "Main Findings", "Implications"),
+                  align = "l",
+                  escape = F,
+                  booktabs = T,
+                  longtable = T,
+                  caption = "A summary of the main findings and subsequent implications from each empirical chapter of this thesis.") %>%
+  column_spec(1, "10em") %>%
+  column_spec(2, "20em") %>% #30
+  column_spec(3, "20em") %>% #30
+  kable_styling(font_size = 8, latex_options = "striped")# %>% 
+  #landscape()
+
+
+```
+
+## Commentary on thesis themes
+
+Three central themes of this thesis were the use of cohort studies as sources of ground truth for mental health digital phenotypes, how we can develop digital phenotypes for the measurement of mental health, and the acceptability of these areas of research.
+Here I will give a brief overview of the conclusions under each theme.
+This includes an overview of the strengths and weaknesses seen in each area, both in relation to the approach taken in this thesis, and the field in general.
+
+### Contributions of cohorts {#discuss-cohorts}
+
+The core theme of this thesis was the process of developing ground truth data for digital phenotyping using a birth cohort study.
+Using a cohort study for this purpose is a novel approach to sourcing data for digital phenotyping, and the research presented in this thesis has effectively served a dual purpose of using the data and evidence obtained from the cohort to conduct new research whilst also testing the effectiveness of linking and using cohort data for this type of research.
+This integration of new data sources, including social media, into birth cohorts is a core aim of long-term strategies for cohorts by the Medical Research Council [@MedicalResearchCouncil2014] and the Welcome Trust [@welcome2017strategy].
+As a result, an important outcome of this thesis is an assessment of the strengths and limitations of conducting social media data linkage in a birth cohort, which is useful to other cohort studies in the UK and around the world who are attempting to do the same.
+
+To begin with, we saw in Chapter \@ref(focus-groups) that social media data linkage can be acceptable to cohort participants, provided that conditions for anonymity and boundaries around data collection are met. These conditions are practically feasible, especially with the use of specialised software for this task [@epicosm], and are in line with existing guidance on the ethical sharing of social media data [@williams2017towards]. Acceptability among participants is crucial given that a lack of 'social license' can cause reputational damage and undermine trust in cohorts which has implications for their long-term success [@Carter2015a]. In Chapter \@ref(linked-data) we also saw that those who opted-in to link their Twitter data were generally representative of those using Twitter in the cohort, which supports the technical feasibility for the use of this data for understanding population-level trends. Given the results of Chapter \@ref(cohort-profile) we can also see how a representative population of Twitter users may differ from the general population. Having this linked cohort data means that we can understand samples we are basing our analyses on in much greater detail, which was a key limitation identified in the existing literature in Chapter \@ref(scoping-review), and elsewhere [@harrigian2020state; @amir2019mental]. In this way population cohorts differ from other research samples in that we always know who is not represented in the sample, not just who is. This is key for understanding where bias might be present in the data, or might be generated from using this data to train predictive models. The strengths of having linked cohort data can be seen in Chapters \@ref(cohort-profile) and \@ref(sentiment), where individual-level accurate data about a population means that we can make robust conclusions, and also explain divergences in results seen elsewhere in the literature. This is partly *because of* the asymmetry we see in the rates of data production between participants which, whilst a limitation for some modelling methodologies [@al2021linking], actually allows us to understand how representative data on Twitter behaves and responds to certain analyses, rather than assuming all users tweet at consistent rates or that tweeting rates are unrelated to outcomes of interest, like mental health status. The strength of cohorts for social media data linkage is also supported by the availability of multiple time points, which is a key difference between linkage in this sample and other panel survey samples [@al2021linking; @mneimneh2021evaluating].
+
+These explorations into the utility of linking social media data in a birth cohort illustrate many strengths of the method, but like all data collection methodologies there are also limitations to this approach.
+One of the main limitations is that there is a hard limit on the size of the linked sample.
+Unlike in solely Twitter-based research where researchers can continue to collect data until they are satisfied that they have enough tweets or users, the linked sample is limited to those who have opted in.
+This does present a limitation to sample sizes, and as we saw in Chapter \@ref(sentiment) due to the asymmetry in the tweeting frequency of populations it is unlikely that the whole linked sample will have tweeted within the period of interest [@al2021linking].
+The other limitations of social media data linkage in birth cohort studies are aligned to the limitations of cohort studies in general.
+Firstly, due to the long running nature of cohorts, measurement of certain concepts may change over time or be dependent on external funding, and so harmonisation of different types of measurement is a challenge.
+This might mean, for instance, that depression is measured at different times to other mental health outcomes, and at different time points may be measured with different tools.
+In ALSPAC this challenge extends to the differences between approaches to surveying the different generations, such that measures for each generational group are likely to be taken at different times and different frequencies.
+Another general limitation of cohort studies is that they are generally not suitable for studying rare disorders, which may limit the usefulness of using birth cohort data for training models on outcomes such as bipolar disorder, schizophrenia and personality disorder which are relatively popular in the field of mental health inference (see Chapter \@ref(scoping-review)) but relatively uncommon in population samples.
+However, the population representative nature of the cohort data is likely to mean that it is highly suitable for testing the sensitivity and specificity of trained algorithms, although those suffering from acute mental health disorders are more likely to have been lost to follow up over time.
+
+A final consideration in the use of linked data from cohort studies is the anonymised nature of the data, which is a condition of access desired by participants (Chapter \@ref(focus-groups)) and implemented by the cohort's data management team (Chapter \@ref(linked-data)). Rather than being a limitation, this should be framed as a methodological consideration for future researchers and cohorts in the careful balance between privacy and trust [@snoke2020statisticians]. By being able to access data that contains more personal and sensitive information about participants, researchers must be willing to sacrifice some of the ease of access to this data, though the data should still be useful and usable. These sacrifices may mean the data is anonymised, or that it can only be accessed inside a secure research environment. Having had the opportunity to test the experience of working with anonymised data in this thesis I found that anonymisation does limit some detailed understanding of the behaviour of the data (as discussed in Chapter \@ref(sentiment)), but that this could be mitigated if it was straightforward for researchers to request updated data that allowed them to explore trends ad-hoc. For instance, extracting the most common words from each category in the LIWC for each user would be highly useful, and still does not require access to the raw text of a tweet. Similarly, allowing researchers to submit code to train their own models, such as language models, may be a solution, although such methods are known to have privacy flaws [@pan2020privacy]. Potential for privacy leaks from outputs such as language models can also be difficult to assess, especially by those who are not subject matter experts, and this may be a barrier to allowing this type of feature construction from cohort datasets. Other solutions currently being explored include the potential for differential privacy methods, which involve using algorithmic methods to generate useful information about the data without disclosing information about any individual [@snoke2020statisticians].
+
+In summary, we saw encouraging results from the programme of Twitter data linkage in ALSPAC.
+We suggest that this method of dataset development addresses important limitations of existing datasets and can support important advances in the quality and robustness of results from digital phenotyping studies in the future.
+
+### Digital phenotyping for mental health
+
+A second aim of this thesis was to explore the utility of using digital phenotypes to infer mental health.
+Here I will briefly cover the benefits and limitations of the use of Twitter for mental health inference that I have encountered, as well as the limitations of our measurement of mental health ground truth in general.
+
+The proposed applications of digital mental health inference using social media have been discussed throughout this thesis, and its benefits could be said to come down to *timeliness* and *scale*.
+As seen in Chapter \@ref(sentiment), even with large error margins it *is* possible for Twitter data to provide signals of changes in mental health at a population level much quicker than a traditional survey method could, which is encouraging.
+This was using a relatively basic model of multiple regression, but other modelling methodologies that make use of machine learning techniques, as seen in Chapter \@ref(scoping-review), may be even more successful.
+There is a trade-off here though, with more opaque techniques potentially being better at making correct inferences but being harder to understand.
+This trade-off is an area that would particularly benefit from further engagement with the proposed users of these future technologies to understand what level of explainability and transparency would be required for adequate interpretation and trust.
+
+Another of the primary benefits of social media data for mental health inference that I discussed in the introduction to this thesis (Section \@ref(twitterlanguage)) is the availability of textual data to use as features for modelling, which sets social media apart from other potential digital phenotypes. We saw in Chapter \@ref(scoping-review) that textual features are popular, and I have illustrated the use of textual data for sentiment modelling in Chapter \@ref(sentiment). However, patterns in word use and linguistics are likely to differ significantly between individuals, groups and settings due to gender, cultural influences, neurodiversity and more [@straw2020artificial; @athanasopoulou2016schizophrenia; @spates2018just].
+An over-reliance on these methods, sentiment and keyword lists in particular, may result in models that have limited generalisability.
+This is less likely to be an issue at a population level, particularly for models that are created for specific geographic or demographic populations.
+
+This thesis, and the field in general [@chancellor2020methods], is largely focussed on the use of the social networking site Twitter, which has its own benefits and drawbacks.
+From results in Chapter \@ref(cohort-profile) we know that Twitter is one of the social media sites that people interact with least frequently day-to-day.
+However, it is also one of the sites whose data is easiest to access for researchers.
+This means that, at the time of writing, Twitter is one of the most feasible platforms with which to conduct population-level health monitoring, since its data is available for this purpose.
+When it comes to individual-level inference though, data from Twitter is unlikely to be sufficient data source for digital phenotyping in the majority of people (see Chapter \@ref(cohort-profile)), and it is likely that more representative and context-aware models would be derived from combinations of data from different platforms.
+This avenue of work is currently limited by the availability of data from other social media sites, which also restricts the applicability of any research completed using these platforms, even if the data could be accessed for research purposes.
+
+Lastly, this thesis has concentrated on mental health as measured by validated scales, but there are many different perspectives from which to study and model mental health and its associated behaviours.
+For instance, there is growing evidence for network or hierarchical perspectives on mental health which move away from traditional models of disorder classification that are set out by diagnostic manuals like the DSM [@Borsboom_2017; @conway2019hierarchical], and which may even allow for the incorporation of environmental and genetic effects into our understanding of the interplay between symptoms and behaviours [@isvoranu2020toward]. Outside of disorders we should also consider how we can use digital phenotypes to measure positive mental health. As seen in Chapter \@ref(sentiment), and elsewhere in the literature [@dodds2011temporal; @frank2013happiness], there is certainly evidence that this approach can be successful, which supports the idea that 'good' mental health should be more than just the absence of illness, but also the promotion of well-being [@slade2010mental].
+
+### Ethics and acceptability {#discuss-ethics}
+
+The ethics of digital phenotyping for mental health is an integral and important part of the field.
+In Chapter \@ref(focus-groups) I investigated the acceptability of social media data collection and research for cohort study participants, and found that in general participants are supportive of these activities, particularly at the population level. This is consistent with previous findings about users' views of what mental health inference on Twitter could and should be used for [@Mikal2016]. In Chapter \@ref(scoping-review) I reported that, despite calls for greater engagement with ethical issues in the field of mental health inference from social media data, the vast majority of studies continue not to include mention of potential ethical issues of this research. It is a concern that by not considering ethics along with our development of these technologies that we build up \textit{ethical debt} [@fiesler2021ethicaldebt], a term coined by Fiesler and Garrett for putting off ethical considerations of new technologies until they are deployed, similarly to how \textit{technical debt} refers to the prioritisation of deployment of technology over the quality of the code itself.
+
+Conversations about ethics in this field tend to focus on the important issues of privacy and surveillance [@akbarialiabad2021threats], but there are a wide variety of other aspects to consider, from the well-being of researchers themselves to technical decisions about performance trade-offs [@chancellor2019taxonomy].
+New ethical frameworks for AI, such as the Data Hazards project discussed in Chapter \@ref(sentiment) [@datahazards], are efforts to recognise these wider range of ethical issues that can arise from data-based research and encourage researchers to consider them more frequently.
+Using linked data from cohorts does allow researchers to address some of these concerns in a way that has not previously been possible with social media data.
+For instance, informed consent is obtained from all participants, and their data is securely stored and distributed by a trusted, central team [@williams2017towards; @sloan2019linking].
+There being no need to manually label data prevents the risk of psychological harm to those who may otherwise be responsible for labelling data [@chancellor2019taxonomy].
+Additionally, we can understand and account for bias in models rather than it being an unknown entity [@straw2020artificial; @aguirre2021gender].
+This presents an exciting development in the ethical quality of social media data available for research, and is an exemplar of how participants and researchers can work together to derive shared boundaries for the safe use of their data [@shiells2022participant].
+
+Other issues of ethics relate more to individual decisions made by data scientists themselves, who often make decisions of how to model and represent the social constructs that they are representing, in this case mental health.
+Barocas and Boyd argued that "[d]ata scientists engage in countless acts of implicit ethical deliberation while trying to make machines learn something useful, valuable, and reliable", describing how decisions of how to clean data, which algorithm to use and how to weigh interpretability against accuracy are all ethical decisions, though they may not be described as such [@barocas2017engaging].
+Our statistical representation of a social construct, like mental health, is embedded with our assumptions about how it should be understood and modelled [@fried2017psychological].
+It is in these decisions that the influence of researcher reflexivity, positionality and priorities are likely to become important [@haraway2020situated].
+This is not to say that such influences are negative, on the contrary, variation in research approaches is how we achieve progress and new ideas, and is an inevitable part of the research process.
+However, understanding how our assumptions influence the solutions we create, especially when they have the potential to be widely used and concern highly personal human attributes, can help us to develop more inclusive and fairer technologies.
+For instance, believing that identification of those with a given disorder is the highest priority may result in a focus on reducing false negatives at the cost of increased false positives.
+Conversely, those who believe that incorrect intervention in someone's life is more damaging than not intervening when someone has a mental health disorder, may instead choose to prioritise the reduction of false positives.
+
+## Future directions
+
+In the previous sections I have touched on the potentials and limitations of the techniques and methodologies used both in this thesis and in the field as a whole.
+Here I propose what I believe will be valuable directions in future research on the basis of these observations.
+
+Firstly, given the encouraging results from the data linkage project described and used in this thesis, future development of social media data linkage programmes in cohorts is recommended.
+This would be especially powerful if conducted across diverse cohorts in terms of age and geographic location.
+Future research may then include harmonising data across multiple cohorts to develop safe and controlled opportunities to test models on a variety of population groups in a way that manages data appropriately.
+
+In terms of digital phenotyping research itself, one of the first areas that I believe will be beneficial for future research is not so much a research opportunity as an adaption of how research in this area is currently conducted.
+This is to be more explicit about the nuance in the question of whether we can infer mental health from social media, by specifying exactly which research question we are trying to answer.\
+Even subtle changes to the problem specification change the ethical concerns, dataset requirements and modelling methodologies that are relevant to the task at hand.
+For instance, human rated assessments of individual tweets that are labelled for 'risk of suicide' or 'no risk of suicide' are likely to be appropriate for a system that intends to flag tweets that should be followed up by a trained human whose role is to offer support.
+In this case the system is aiming to automate a human screening process.
+However, this dataset may not be as useful for measuring suicide risk in a large population over time.
+Similarly, models and datasets used to understand population mental health over time are unlikely to be suitable for measuring individual-level changes in suicidality [@arah2009relationship; @fisher2018lack].
+These distinct approaches to "inferring mental health with social media data" have unique ethical challenges, require different modelling and validation processes, different considerations of computational efficiency trade-offs, and potentially models with different levels of explainability.
+By capturing this nuance we can make sure that critique of datasets and approaches are made with respect to the research aims, and also focus comparisons and progress against aligned research questions.
+
+In being more specific about our questions we can also more readily understand how research programmes will benefit from interdisciplinarity, and which disciplines should be involved.
+For instance, as well as generally benefiting from input from clinical psychology as has been suggested previously [@chancellor2019taxonomy; @wongkoplap2017review; @chancellor2020methods], population-level monitoring of mental health is likely to benefit from the involvement of public health professionals and health policy makers as the parties who are to be the end users of these data.
+Additionally, experts in human-computer interaction (HCI) can support understanding of how these new technologies could be communicated most effectively for decision making [@raineri2021innovation; @dspolicty2017bi].
+This being said, interdisciplinarity has its challenges too. 
+From different expectations of project timelines and outputs, to different technical vocabularies, it takes time and effort to build a strong interdisciplinary collaborations that allow for useful and meaningful input from all parties. 
+On this basis, we need to ensure that involvement of experts from different fields are not included as 'check-box' exercises, but that those with different types of expertise are all given the opportunity to influence this field in a meaningful way. 
+For example, as seen in Chapter \@ref(scoping-review), it is relatively common to involve mental health experts in data labelling but not in defining the research question, which misses an opportunity to invite critical expertise at an important stage of the project.
+
+Another important next step in the field is working out how to involve potential users of these technologies in their development, particularly those who are from marginalised groups, to better understand how humans and algorithms can work together in the provision of mental health care [@pos2005becoming; @park2019exclusionbydesign].
+An important component of systems that have been found to cause harm and reinforce structural inequalities in the past is that they are employed in settings and institutions that inherently feature power imbalances, like policing, statutory social care, or health insurance [@mlincsc; @eubanks2018automating; @buolamwini2018].
+These are settings where it is likely that training data will reflect existing inequalities since it is those inequalities which are often causally related to the outcomes they are predicting.
+Mental health services are, by design, a setting with significant power imbalances [@staniszewska2019experiences; @szmukler2015compulsion], with this power intended to be used to protect those who are most vulnerable, although often experienced as oppressive by those within it [@sweeney2018mis].
+In the UK people who are Black African or Black Caribbean are proportionately more likely to be sectioned than any other ethnic group [@barnett2019ethnic], and there is evidence that people from marginalised groups are more likely to be misdiagnosed with mental health conditions [@nakash2015social].
+This not only affects our training data, but also leads to questions of how the social power of an algorithmic system may influence outcomes in settings where mental health care is provided [@beer2017social].
+For instance, women in general are less likely to be considered credible by medical professionals, with this impact compounded for Black women [@appignanesi2011mad; @werner2003hard].
+By involving a diverse group of citizens in the exploration of these technologies we can hope to address risks that could arise from their deployment and avoid foreseeable future harms as best we can.
+Doing so is likely to mean that we also need to work on how best to involve lay people in the development of data science projects.
+This is something that other fields have done with great success such as Public Patient Involvement groups, citizen scientists and peer researchers in health and medical research, or participatory/action research in health and social care [@boote2015talking].
+
+Lastly, we can also use social media data to improve our understanding of mental health.
+In particular there are interesting avenues in network representations and co-morbidity of mental health disorders, and the temporality of different mental health constructs [@hitchcock2022computational] which social media data may be well placed to inform as an alternative to other resource intensive methods such as ecological momentary assessment [@kelley2022using]. This can also include understanding of the reciprocal interactions between mental health and social media which were discussed in Section \@ref(perspectives-mhsm) [@AalbersMcNallyHeerendeWitFried_2018]. In doing so, and by continuing to use ground truth data with better specified samples, we could also use social media to develop more robust understandings of the impact of key life events, such as moving away from home, starting families or measuring well-being over the lifespan [@de2014characterizing].
+
+## Conclusion
+
+Overall we have seen that social media data linkage in cohort studies is acceptable, feasible and produces novel benefits, particularly in the availability of population representative and longitudinal data as well as the ethical sharing and storage of social media data from participants.
+There are limitations of these data that align with common limitations of cohort study data in general, but generating new datasets with different limitations to those that exist currently allows us to explore new questions and address different concerns that we have been unable to previously.
+Twitter is still the most straightforward platform to achieve this outcome with, and restrictions on other popular platforms like Facebook and Instagram present a challenge to digital phenotyping research that can only really be resolved by the corporations who control this data.
+
+Continuing to develop safe, trustworthy and acceptable methods for mental health inference from digital phenotypes can allow us to achieve new understandings of mental health which advance the treatment and prevention of mental illnesses, as well as promote positive mental well-being.

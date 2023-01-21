@@ -1,0 +1,908 @@
+`r if(knitr:::is_latex_output()) '\\appendix'`
+
+`r if(!knitr:::is_latex_output()) '# (APPENDIX) Appendix {-}'` 
+
+<!--
+If you feel it necessary to include an appendix, it goes here.
+-->
+
+
+# Chapter \@ref(cohort-profile) 
+
+## Additional sample information
+
+```{r supp-demog-freq-plat}
+
+# This is calculated a bit differently to in dems-plat and dems-freq because getting the gt_summary
+# package to play right with two categorical summary variables was tricky. 
+# The calculations are equivalent though (just longer!)
+
+dems_plat <- main_df %>% 
+  select(id, SM_FB_YPD, SM_Twitter_YPD, SM_Insta_YPD, SM_Snapchat_YPD, SM_YouTube_YPD, sex, ethnicity, ALevelEquiv, soc_class) %>%
+  pivot_longer(cols = starts_with("SM_"),
+   names_to = "platform",
+   names_prefix = "SM_",
+   values_to = "freq",
+   values_drop_na = FALSE) %>%
+  mutate(freq = recode_factor(freq, !!!freq_key)) %>%
+  mutate(platform = recode_factor(platform, !!!sm_key)) %>%
+  mutate_if(is.factor,
+                      fct_explicit_na,
+                      na_level = "Unknown")
+
+# Get the count of each demographic category, then attach back together.
+all_df <- dems_plat %>% count(platform, freq)
+sex_df <- dems_plat %>% 
+  count(platform, freq, sex) %>% 
+  pivot_wider(names_from = sex, values_from = n, names_glue = "sex_{sex}")
+ethnicity_df <- dems_plat %>% 
+  count(platform, freq, ethnicity) %>% 
+  pivot_wider(names_from = ethnicity, values_from = n, names_glue = "ethnicity_{ethnicity}")
+alevel_df <- dems_plat %>% 
+  count(platform, freq, ALevelEquiv) %>% 
+  pivot_wider(names_from = ALevelEquiv, values_from = n, names_glue = "alevel_{ALevelEquiv}")
+class_df <- dems_plat %>% 
+  count(platform, freq, soc_class) %>% 
+  pivot_wider(names_from = soc_class, values_from = n, names_glue = "class_{soc_class}")
+
+# Rejoin all the dataframes
+dems_plat_count <- all_df %>% 
+  left_join(sex_df) %>% 
+  left_join(ethnicity_df) %>% 
+  left_join(alevel_df) %>% 
+  left_join(class_df)
+# Replace NA with count of 0
+dems_plat_count[is.na(dems_plat_count)] <- 0 
+
+# Remove all the temp datasets
+rm(all_df, sex_df, ethnicity_df, alevel_df, class_df, dems_plat)
+
+# Make these into percentages now and make a table
+dems_plat_count %>% 
+  select(!n) %>%
+  group_by(platform) %>% 
+  filter(freq != "Don't know") %>%
+  mutate(across(where(is.numeric), percent)) %>%
+  mutate(across(where(is.numeric), round, digits=1)) %>%
+  ungroup() %>%
+  # Begin table set up
+  select(!c(ethnicity_Unknown, alevel_Unknown, class_Unknown)) %>%
+  rename(Platform = platform, 
+        Frequency = freq,
+        Female = sex_Female,
+        Male = sex_Male,
+        "Minority Ethnic Groups" = "ethnicity_Non-white",
+        White = ethnicity_White,
+        "No A Levels" = alevel_No,
+        "A Levels" = alevel_Yes,
+        "Non-Manual" = `class_Non Manual`,
+        "Manual" = class_Manual) %>%
+  mutate(across(where(is.factor), as.character)) %>%
+  mutate(Frequency = recode(Frequency, "Less than daily" = "Less")) %>%
+  mutate(Frequency = recode(Frequency, "No" = "Never")) %>%
+  kableExtra::kbl(booktabs = TRUE, caption = "Percentage of the users of each social media site by use-frequency and demographics reported.") %>%
+  kable_styling(font_size = 8, latex_options = c("hold_position")) %>%
+  kableExtra::add_header_above(c(" " = 2, "Sex" = 2, "Ethnicity" = 2, "A Levels" = 2, "Parental Employment Class" = 2)) %>%
+  column_spec(3, width = "3em") %>%
+  column_spec(4, width = "3em") %>% 
+  column_spec(5, width = "5em") %>% # Minority Ethnic Groups needs to wrap
+  column_spec(6, width = "3em") %>% 
+  column_spec(7, width = "3em") %>%
+  column_spec(8, width = "3em") %>%
+  column_spec(9, width = "3em") %>%
+  column_spec(10, width = "3em")
+
+
+```
+
+\clearpage
+## Descriptive data on mental health and well-being outcomes
+
+```{r mh-descriptors}
+
+# Summary of the overall continuous and categorical mental health outcomes
+# We can get these from the ggplot objects. 
+# The overall stats are the same for both _plat and _freq so just choose one.
+
+mh_names <-  c(
+     "ed_YPD" = "Disordered Eating",
+     "self_harm_YPD" = "Self-Harm",
+     "suic_YPD" = "Suicidal Thoughts",
+     "mfq" = "Depression *",
+     "Female" = "Female",
+     "Male" = "Male")
+
+main_df %>%
+  mutate("Depression" =  as.factor(ifelse(MFQ_YPC >= 12, "Yes", "No"))) %>%
+  select(sex, Depression, ed_YPD, suic_YPD, self_harm_YPD) %>%
+  rename("Disordered Eating" = "ed_YPD",
+         "Self-Harm" = "self_harm_YPD",
+         "Suicidal Thoughts" = "suic_YPD") %>%
+  tbl_summary(by = sex, 
+              missing = "no", 
+              statistic = everything() ~ "{p}") %>%
+  add_ci(pattern = "{stat} ({ci})",
+         statistic = list(all_categorical() ~ "{conf.low}, {conf.high}")) %>%
+  modify_header(all_stat_cols() ~ "% {level} (CI)") %>%
+  modify_footnote(everything() ~ NA) %>%
+  gtsummary::as_kable_extra(booktabs = TRUE, caption = "The percentage of the sample who had experienced each of the four categorical mental health outcomes." ) %>%
+  kableExtra::add_header_above(c("", "Percentages by Sex" = 2)) %>%
+  kableExtra::footnote(., general="Depression was measured in the sub-sample (N=2,862)") %>%
+  kable_styling(latex_options = c("hold_position"))
+
+```
+
+```{r wb-descriptors}
+
+# As above but for continuous data
+
+wb_descrip <- sub_df %>%
+  select(sex, BPN_YPC_autonomy, BPN_YPC_competence, BPN_YPC_relatedness, SWL_YPC, MIL_pres_YPC, MIL_search_YPC, LOT_YPC,  WEMWS_YPC, GQ6_YPC, subj_happ_YPC) %>%
+  rename("BPN (Autonomy)" = "BPN_YPC_autonomy",
+        "BPN (Competence)" = "BPN_YPC_competence",
+        "BPN (Relatedness)" = "BPN_YPC_relatedness",
+        "Satisfaction With Life" = "SWL_YPC",
+        "MIL (Presence)" = "MIL_pres_YPC",
+        "MIL (Search)" = "MIL_search_YPC",
+        "Life Orientation Test" = "LOT_YPC",
+        "WEMWBS" = "WEMWS_YPC",
+        "Gratitude Questionnaire" = "GQ6_YPC",
+        "Subjective Happiness" = "subj_happ_YPC")
+
+subtbl1 <- wb_descrip %>%
+  tbl_summary(by = sex,
+              statistic = all_continuous() ~ "{mean} ({sd})",
+              digits = all_continuous() ~ 2) %>%
+  modify_header(all_stat_cols() ~ "{level}")
+
+
+subtbl2 <- wb_descrip %>%
+  select(-sex) %>%
+  tbl_summary(statistic = all_continuous() ~ "{min}") %>%
+  modify_header(all_stat_cols() ~ "Min. Value")
+
+subtbl3 <- wb_descrip %>%
+  select(-sex) %>%
+  tbl_summary(statistic = all_continuous() ~ "{max}") %>%
+  modify_header(all_stat_cols() ~ "Max. Value")
+
+
+tbl_merge(list(subtbl1, subtbl2, subtbl3),
+          tab_spanner = c("Mean (SD) by Sex", " ", " ")) %>%
+    modify_footnote(all_stat_cols() ~ NA) %>%
+    modify_caption("Summary statistics for well-being outcomes, all measured in the sub-sample (N=2,862).") %>%
+    gtsummary::as_kable_extra(booktabs = TRUE) %>%
+    kableExtra::footnote(general = c("Basic Psychological Needs (BPN)", "Meaning In Life (MIL)", "Warwick Edinburgh Mental Well-being Scale (WEMWBS)"))
+
+```
+
+```{r suic-ed}
+
+catdat <- main_df %>% 
+  select(suic_YPD, self_harm_YPD, ed_YPD) %>%
+  rename("Suicidality" = "suic_YPD",
+         "Self-harm" = "self_harm_YPD", 
+         "Disordered Eating" = "ed_YPD")
+
+tbl_cross(catdat %>% 
+            select(`Disordered Eating`, Suicidality), statistic = "{p}%") %>% 
+  modify_caption("Contingency table of suicidiality and disordered eating (N=4,083).") %>%
+  as_kable_extra(booktabs = TRUE)
+                     
+```
+
+```{r suic-sh}
+
+tbl_cross(catdat %>% 
+            select(Suicidality, `Self-harm`), statistic = "{p}%") %>% 
+  modify_caption("Contingency table of suicidiality and self-harm (N=4,083).") %>%
+  as_kable_extra(booktabs = TRUE)
+
+
+```
+
+```{r ed-sh}
+tbl_cross(catdat %>% 
+            select(`Disordered Eating`, `Self-harm`), statistic = "{p}%") %>% 
+  modify_caption("Contingency table of disordered eating and self-harm (N=4,083).") %>%
+  as_kable_extra(booktabs = TRUE)
+
+```
+
+
+```{r mh-corrs, fig.cap="A correlation matrix for all continuous mental health and well-being variables using Spearman's Rank coefficient (all p < 0.000).", dpi = 360, fig.width=8, fig.height=8, out.width="100%"}
+# Correlation matrix between all of the mental health and wellbeing outcomes. Use spearman's rank.
+library(ggcorrplot)
+
+dat <- main_df %>%
+  select("MFQ_YPC", "BPN_YPC_autonomy", "BPN_YPC_competence", "BPN_YPC_relatedness", "WEMWS_YPC", "subj_happ_YPC", "GQ6_YPC", "SWL_YPC",
+         "MIL_pres_YPC", "MIL_search_YPC", "LOT_YPC") %>%
+  rename("BPN (Autonomy)" = "BPN_YPC_autonomy",
+        "BPN (Competence)" = "BPN_YPC_competence",
+        "BPN (Relatedness)" = "BPN_YPC_relatedness", 
+        "Satisfaction With Life" = "SWL_YPC",
+        "MIL (Presence)" = "MIL_pres_YPC",
+        "MIL (Search)" = "MIL_search_YPC",
+        "Life Orientation Test" = "LOT_YPC",
+        "WEMWBS" = "WEMWS_YPC",
+        "Gratitude Questionnaire" = "GQ6_YPC",
+        "Subjective Happiness" = "subj_happ_YPC",
+        "MFQ" = "MFQ_YPC")
+
+corrdat <- round(cor(dat, use = "complete.obs"), 1)
+#p.mat <- cor_pmat(dat, method="spearman")
+
+ggcorrplot(corrdat,
+   outline.col = "white",
+   ggtheme = ggplot2::theme_minimal,
+   colors = c("#6D9EC1", "white", "#E46726"),
+   lab = TRUE)
+```
+
+\clearpage
+## Outcomes by platform for all social media users
+
+In the main text the graphs by platform only include daily users of each. 
+These graphs have an expanded sample to include every participant who said they used each platform with any frequency.
+
+```{r mh-plat-all, fig.cap="Percentage of participants who reported disordered eating, self-harm, depression, or suicidal thoughts in the past year, differentiated by sex for all users of each platform, with 95\\% confidence intervals.", fig.width=9, fig.height=5, dpi=360, out.width="100%"}
+
+library(tidyr)
+
+# Get the percentages of those with mfq over the threshold
+mfq <- mh_df %>% 
+  mfq_threshold(., platform, all = TRUE) %>%
+  mutate(measure = "mfq") # Set a measure variable for easy combining
+
+# Process the other mh variables, and then plot
+mh_plat <- mh_df %>% 
+  mh_summary(., platform, all = TRUE) %>%
+  full_join(mfq) %>%
+  plot_mh_pcts(., "platform", multiple = TRUE)
+
+mh_plat
+
+```
+
+```{r wb-plat-all, fig.cap="Mean scores for seven well-being measures for all users of each platform, stratified by sex, with 95\\% confidence intervals.", fig.width=9, fig.height=11, dpi=360, out.width="100%"}
+
+wb_plat <- wb_df %>% 
+    wb_summary(., platform, all = TRUE) %>%
+    plot_scores(., "platform", multiple = TRUE)
+
+wb_plat
+
+```
+
+\clearpage
+# Chapter \@ref(linked-data)
+
+## Mental health sample comparisons by sex
+
+The following two graphs illustrate Figure \@ref(fig:mh-comparison-plots) when split by sex, with Figure \@ref(fig:mh-comparison-plots-fem) showing comparison of Female scores and Figure \@ref(fig:mh-comparison-plots-men) showing comparison of Male scores. 
+
+```{r mh-comparison-plots-fem, dpi=330, fig.cap="A comparison of the distributions of female participant scores for anxiety, depression and general well-being between those who agreed to link their Twitter data, and the whole cohort (including linked respondents). The box plot is presenting the median and interquartile ranges.", out.width="100%"} 
+
+# Define functions for making the boxplots and density plots
+box_plot <- function(variable) {
+  # Make the boxplot
+  plot_data %>% 
+  filter(sex == "Female") %>%
+  select(variable, group, person) %>%
+  mutate(group = recode_factor(group, "all" = "All respondents (N=6827)", "linked" = "Linked respondents (N=479)")) %>%
+  pivot_longer(cols = contains("cont"), names_to = "scale_name", values_to = "scale_score") %>%
+  mutate(scale_name = case_when(scale_name == 'COVID1_mfq_cont' ~ 'Depression',
+                           scale_name == 'COVID1_gad_cont' ~ 'Anxiety',
+                           scale_name == 'COVID1_wemwbs_cont' ~ 'General Well-being')) %>%
+  ggplot(aes(y = scale_score, fill = group)) + 
+  geom_boxplot() +
+  theme_light() +
+  facet_wrap(vars(scale_name), scales = "free") +
+  ylab("") +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    legend.position="none") +
+  scale_fill_discrete(name = "Group") 
+}
+
+density_plot <- function(variable) {
+  
+  # Make the density plot
+  plot_data %>% 
+  filter(sex == "Female") %>%
+  select(variable, group, person) %>%
+  mutate(group = recode_factor(group, "all" = "All respondents (N=6,827)", "linked" = "Linked respondents (N=479)")) %>%
+  pivot_longer(cols = contains("cont"), names_to = "scale_name", values_to = "scale_score") %>%
+  mutate(scale_name = case_when(scale_name == 'COVID1_mfq_cont' ~ 'Depression',
+                           scale_name == 'COVID1_gad_cont' ~ 'Anxiety',
+                           scale_name == 'COVID1_wemwbs_cont' ~ 'General Well-being')) %>%
+  ggplot(aes(x = scale_score, fill = group)) + 
+  geom_density(alpha=0.4) +
+  theme_light() +
+  facet_wrap(vars(scale_name), scales = "free", nrow=3) +
+  xlab("\nScale Score") +
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    legend.position="none") +
+  scale_fill_discrete(name = "Group") + 
+  ylab("")
+}
+  
+box_and_density <- function(boxplot, densityplot) {
+  # Combine them in a ggarrange function, and return.
+  plot_grid(boxplot, densityplot,
+           align = 'vh', 
+           nrow = 2, ncol = 1, 
+           rel_heights = c(4,2)) 
+}
+
+# Get each of the box/density plots
+anx_plots <- box_and_density(box_plot("COVID1_gad_cont"), density_plot("COVID1_gad_cont"))
+dep_plots <- box_and_density(box_plot("COVID1_mfq_cont"), density_plot("COVID1_mfq_cont"))
+wb_plots <- box_and_density(box_plot("COVID1_wemwbs_cont"), density_plot("COVID1_wemwbs_cont"))
+
+# Combine them
+allplts <- plot_grid(
+          dep_plots + theme(legend.position="none"),
+          anx_plots + theme(legend.position="none"),
+          wb_plots + theme(legend.position="none"),
+          align = 'h', nrow = 1)
+
+# Get a single legend
+legend <- get_legend(
+  box_plot("COVID1_gad_cont") + 
+    guides(color = guide_legend(nrow = 1)) +
+    theme(legend.position = "bottom")
+)
+
+# Add legend to the combined plot
+plot_grid(allplts, legend, ncol = 1, rel_heights = c(1, .1))
+
+
+rm(anx_plots, dep_plots, wb_plots)
+```
+
+```{r mh-comparison-plots-men, dpi=330, fig.cap="A comparison of the distributions of male participant scores for anxiety, depression and general well-being between those who agreed to link their Twitter data, and the whole cohort (including linked respondents). The box plot is presenting the median and interquartile ranges.", out.width="100%"} 
+
+# Define functions for making the boxplots and density plots
+box_plot <- function(variable) {
+  # Make the boxplot
+  plot_data %>% 
+  filter(sex == "Male") %>%
+  select(variable, group, person) %>%
+  mutate(group = recode_factor(group, "all" = "All respondents (N=6827)", "linked" = "Linked respondents (N=479)")) %>%
+  pivot_longer(cols = contains("cont"), names_to = "scale_name", values_to = "scale_score") %>%
+  mutate(scale_name = case_when(scale_name == 'COVID1_mfq_cont' ~ 'Depression',
+                           scale_name == 'COVID1_gad_cont' ~ 'Anxiety',
+                           scale_name == 'COVID1_wemwbs_cont' ~ 'General Well-being')) %>%
+  ggplot(aes(y = scale_score, fill = group)) + 
+  geom_boxplot() +
+  theme_light() +
+  facet_wrap(vars(scale_name), scales = "free") +
+  ylab("") +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    legend.position="none") +
+  scale_fill_discrete(name = "Group") 
+}
+
+density_plot <- function(variable) {
+  
+  # Make the density plot
+  plot_data %>% 
+  filter(sex == "Male") %>%
+  select(variable, group, person) %>%
+  mutate(group = recode_factor(group, "all" = "All respondents (N=6,827)", "linked" = "Linked respondents (N=479)")) %>%
+  pivot_longer(cols = contains("cont"), names_to = "scale_name", values_to = "scale_score") %>%
+  mutate(scale_name = case_when(scale_name == 'COVID1_mfq_cont' ~ 'Depression',
+                           scale_name == 'COVID1_gad_cont' ~ 'Anxiety',
+                           scale_name == 'COVID1_wemwbs_cont' ~ 'General Well-being')) %>%
+  ggplot(aes(x = scale_score, fill = group)) + 
+  geom_density(alpha=0.4) +
+  theme_light() +
+  facet_wrap(vars(scale_name), scales = "free", nrow=3) +
+  xlab("\nScale Score") +
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    legend.position="none") +
+  scale_fill_discrete(name = "Group") + 
+  ylab("")
+}
+  
+box_and_density <- function(boxplot, densityplot) {
+  # Combine them in a ggarrange function, and return.
+  plot_grid(boxplot, densityplot,
+           align = 'vh', 
+           nrow = 2, ncol = 1, 
+           rel_heights = c(4,2)) 
+}
+
+# Get each of the box/density plots
+anx_plots <- box_and_density(box_plot("COVID1_gad_cont"), density_plot("COVID1_gad_cont"))
+dep_plots <- box_and_density(box_plot("COVID1_mfq_cont"), density_plot("COVID1_mfq_cont"))
+wb_plots <- box_and_density(box_plot("COVID1_wemwbs_cont"), density_plot("COVID1_wemwbs_cont"))
+
+# Combine them
+allplts <- plot_grid(
+          dep_plots + theme(legend.position="none"),
+          anx_plots + theme(legend.position="none"),
+          wb_plots + theme(legend.position="none"),
+          align = 'h', nrow = 1)
+
+# Get a single legend
+legend <- get_legend(
+  box_plot("COVID1_gad_cont") + 
+    guides(color = guide_legend(nrow = 1)) +
+    theme(legend.position = "bottom")
+)
+
+# Add legend to the combined plot
+plot_grid(allplts, legend, ncol = 1, rel_heights = c(1, .1))
+
+
+rm(anx_plots, dep_plots, wb_plots)
+```
+
+\clearpage
+# Chapter \@ref(scoping-review)
+
+## Systematic search key terms {#searchterms}
+
+The terms in point (1) are related to classification and machine learning, in point (2) are related to mental health and in point (3) are related to Twitter:
+
+(1) algorithm OR predict* OR detect* OR understand OR perceiv* OR "machine learning" OR "deep learning" OR "artificial intelligence" OR AI OR interpret OR character* OR classif* OR model* OR analy* OR machine OR recogni* OR sentiment
+(2) depress* OR bipolar* OR wellbeing OR PTSD OR "post traumatic stress disorder" OR suici* OR "mental health" OR mentalhealth OR anxi* OR "personality disorder" OR "eating disorder" OR " ED " OR "disordered eating" OR DSM* OR ICD* OR (mental AND well\*) OR (mental AND ill\*) OR schizophren*
+(3) twitter OR tweet* OR social media OR social network*
+
+These three sets of terms were searched in each database as (1) AND (2) AND (3).
+Where the database allowed this was restricted to titles, keywords and abstracts. 
+
+\clearpage
+# Chapter \@ref(sentiment)
+
+## Data Hazards Analysis {#datahazards}
+
+The Data Hazards project was created and developed jointly by myself and Natalie Zelenka.
+The Data Hazards labels (http://datahazards.com/) are a series of potential consequences of data science projects that present a risk to the ethical integrity of the project. 
+These labels were developed to help researchers acknowledge risks to data science research that may not fit into the remit of research ethics committees, but still require consideration to ensure that data science is done safely.
+The project encourages reflective thinking by researchers, and provides a series of resources to help make regular reflection on ethical issues a more prominent aspect of applied data science.
+
+\newpage
+
+\begin{longtable}[t]{p{0.2\textwidth}p{0.4\textwidth}p{0.4\textwidth}}
+\caption{An analysis of different potential ethical hazards that might be presented by this project, using the Data Hazard labels.}\\ 
+\hline
+  Hazard &                  % The Hazard Label being considered 
+  Reasoning &               % Your view on whether that Hazard applies to your project
+  Safety Precautions \\     % Safety precautions you are taking if it applies to your project
+  \hline
+\includegraphics[width=0.18\textwidth]{figure/hazards/general-hazard.png}
+  General data hazard &
+  Yes. 
+  This applies because the project uses data science. 
+  & 
+  I have aimed to be explicit throughout about what types of data science are being used and how they have been implemented so that they can be scrutinised.
+   \\
+\includegraphics[width=0.18\textwidth]{figure/hazards/reinforce-bias.png}
+  Reinforces existing biases &
+  Yes. 
+This Hazard applies because the models being generated will learn patterns from the data being input about participant mental health. The ALSPAC sample does not include many people from ethnic minority backgrounds, and so there is less training data available for people who are not White. 
+Other biases may include that the ALSPAC parent sample is most likely to include people who are heterosexual.
+  &
+  An error analysis was conducted to assess how the predictions may be biased by characteristics like sex and age. 
+However, this was limited by the variables available.
+   \\
+\includegraphics[width=0.18\textwidth]{figure/hazards/classifies-people.png}
+  Ranks or classifies people &
+  Yes. 
+This model could be used to rank people based on their predicted mental health outcome score.
+  &
+  In this study I was not interested in individual rankings, though in theory they could be derived using the models described in the study. I also intentionally chose to use continuous measures of mental health to avoid classifying people as having a mental health disorder or not. 
+   \\
+\includegraphics[width=0.18\textwidth]{figure/hazards/environment.png}
+  High environmental cost &
+  No. 
+The methods used in this study were not reliant on high performance computing or precious materials beyond those usually used in the creation of standard computers and laptops. 
+  &
+  NA
+   \\
+\includegraphics[width=0.18\textwidth]{figure/hazards/lacks-community.png}
+  Lacks community involvement &
+  Yes and No.
+The community of ALSPAC participants whose data was linked for this study were consulted. 
+However, individuals who experience poor mental health were not involved in the design or development of the study itself.
+  &
+  The study has focussed on population-level inference instead of individual-level inference. 
+Future research on individual-level inference would benefit from involvement of more stakeholders. 
+   \\
+\includegraphics[width=0.18\textwidth]{figure/hazards/misuse.png}
+  Danger of misuse &
+  Yes. 
+The inference of mental health states from public social media data has potential for misuse by other individuals who may be capable of using models to attempt to infer information about people who were not in the original study.
+  &
+  See the reasoning provided in ‘Risk to Privacy’.
+   \\
+\includegraphics[width=0.18\textwidth]{figure/hazards/difficult-to-understand.png}
+  Difficult to understand &
+  No. 
+The models in this study have intentionally been developed using methods that are transparent and relatively easy to understand and explain. 
+The data used for this study is only available on request, but is accessible to others.
+  &
+  NA
+   \\
+\includegraphics[width=0.18\textwidth]{figure/hazards/automates-decision-making.png}
+  May cause direct harm &
+  No. 
+These models do not have the capacity to cause direct harm to an individual in their current use case. 
+  &
+  NA
+   \\
+\includegraphics[width=0.18\textwidth]{figure/hazards/privacy.png}
+  Risk to Privacy &
+ Potentially. 
+For the reasons given in ‘Danger of Misuse’ there could be a risk to privacy if someone attempted to predict individual level mental health using these models. 
+However, there is no risk to privacy for participants in the study, since their data is protected by the central ALSPAC team.
+  &
+  The models used in this study have significant ranges of error for individual level prediction. As such it is highly unlikely that an accurate estimate could be obtained for an individual, especially out of sample. 
+I have made this clear in the presentation of results to ensure that readers are aware of this. 
+   \\
+\includegraphics[width=0.18\textwidth]{figure/hazards/automates-decision-making.png}
+  Automates decision making &
+  No. 
+Whilst the tools produced in this study provide information that could be used for decision making they do not actually make any decisions. 
+  &
+  NA
+   \\
+\includegraphics[width=0.18\textwidth]{figure/hazards/lacks-informed-consent.png}
+  Lacks informed consent &
+  No. 
+All participants took part with informed consent. 
+  &
+  NA
+   \\ \bottomrule
+\end{longtable}
+
+
+\clearpage
+## Descriptive mental health data by sex and generation
+
+
+```{r sex-mh-tweets}
+
+summary_t1 <- data_t1 %>%
+  count(id) %>%
+  left_join(., surveys %>% select(id, sex, generation, ethnicity_yp, COVID1_mfq_cont, COVID1_gad_cont, COVID1_wemwbs_cont)) %>%
+  rename(
+    "Number of tweets" = "n",
+    "Depression (MFQ)" = "COVID1_mfq_cont",
+    "Anxiety (GAD-7)" = "COVID1_gad_cont",
+    "Well-being (WEMWBS)" = "COVID1_wemwbs_cont")
+
+summary_t2 <-  data_t1 %>%
+  count(id) %>%
+  left_join(., surveys %>% select(id, sex, generation, ethnicity_yp, COVID2_mfq_cont, COVID2_gad_cont, COVID2_wemwbs_cont)) %>%
+  rename(
+    "Number of tweets" = "n",
+    "Depression (MFQ)" = "COVID2_mfq_cont",
+    "Anxiety (GAD-7)" = "COVID2_gad_cont",
+    "Well-being (WEMWBS)" = "COVID2_wemwbs_cont")
+
+sex_t1 <- summary_t1 %>%   
+  select("sex", "Number of tweets", "Depression (MFQ)", "Anxiety (GAD-7)", "Well-being (WEMWBS)") %>%
+  tbl_summary(by = "sex")
+  
+sex_t2 <- summary_t2 %>%
+  select("sex", "Number of tweets", "Depression (MFQ)", "Anxiety (GAD-7)", "Well-being (WEMWBS)") %>%
+  tbl_summary(by = "sex")
+  
+tbl_merge(tbls = list(sex_t1, sex_t2), tab_spanner = c("Survey 1", "Survey 2")) %>%
+  as_kable_extra(booktabs = TRUE,
+                 caption = "Summary of numbers of tweets and the mental health outcomes between men and women at Survey 1 and Survey 2.") %>%
+    kable_styling(position = "center", latex_options = c("hold_position", "scale_down"))
+
+rm(sex_t1, sex_t2)
+```
+
+
+```{r gen-mh-tweets}
+gen_t1 <- summary_t1 %>%   
+  select("generation", "Number of tweets", "Depression (MFQ)", "Anxiety (GAD-7)", "Well-being (WEMWBS)") %>%
+  tbl_summary(by = "generation")
+  
+gen_t2 <- summary_t2 %>%
+  select("generation", "Number of tweets", "Depression (MFQ)", "Anxiety (GAD-7)", "Well-being (WEMWBS)") %>%
+  tbl_summary(by = "generation")
+  
+tbl_merge(tbls = list(gen_t1, gen_t2), tab_spanner = c("Survey 1", "Survey 2")) %>%
+  as_kable_extra(booktabs = TRUE,
+                 caption = "Summary of numbers of tweets and the mental health outcomes between G0 and G1 at Survey 1 and Survey 2.") %>%
+    kable_styling(position = "center", latex_options = c("hold_position", "scale_down"))
+
+rm(gen_t1, gen_t2)
+```
+
+\clearpage
+## Correlations between model features
+
+```{r dep-varbs-corr, fig.cap="Correlations between the variables which were best associated with depression", dpi = 360, fig.width=8, fig.height=10, out.width="100%"}
+datasets_t1 %>% 
+  filter(window_len_spec == 2) %>% 
+  filter(weight_spec == 1) %>% 
+  select(all_of(dep_vars)) %>%
+  rename_with(., sent_rename_many) %>%
+  cor(.,  method = "spearman") %>%
+  ggcorrplot(.,
+   outline.col = "white",
+   ggtheme = ggplot2::theme_minimal,
+   colors = c("#6D9EC1", "white", "#E46726"),
+   lab = TRUE)
+  # corrplot(., method = 'square', type = 'lower', diag = FALSE,
+  #        tl.col = "black", tl.cex = 0.8)
+```
+
+```{r anx-varbs-corr, fig.cap="Correlations between the variables which were best associated with general anxiety", dpi = 360, fig.width=8, fig.height=10, out.width="100%"}
+datasets_t1 %>% 
+  filter(window_len_spec == 2) %>% 
+  filter(weight_spec == 1) %>% 
+  select(all_of(anx_vars)) %>%
+  rename_with(., sent_rename_many) %>%
+  cor(.,  method = "spearman") %>%
+  ggcorrplot(.,
+   outline.col = "white",
+   ggtheme = ggplot2::theme_minimal,
+   colors = c("#6D9EC1", "white", "#E46726"),
+   lab = TRUE)
+  # corrplot(., method = 'square', type = 'lower', diag = FALSE,
+  #        tl.col = "black", tl.cex = 0.8)
+```
+
+```{r wb-varbs-corr, fig.cap="Correlation between the variables which were best associated with general well-being", dpi = 360, fig.width=8, fig.height=10, out.width="100%"}
+datasets_t1 %>% 
+  filter(window_len_spec == 2) %>% 
+  filter(weight_spec == 1) %>% 
+  select(all_of(wb_vars)) %>%
+  rename_with(., sent_rename_many) %>%
+  cor(.,  method = "spearman") %>%
+  ggcorrplot(.,
+   outline.col = "white",
+   ggtheme = ggplot2::theme_minimal,
+   colors = c("#6D9EC1", "white", "#E46726"),
+   lab = TRUE)
+
+```
+
+\clearpage
+## Associations for disaggregated data
+
+```{r sentall}
+
+# First calculate for all variables then we'll filter as necessary.
+outcomevarbs2 <- data_t1 %>% 
+  select(contains("liwc"), contains("vader"), contains("labmt"), time_num) %>% 
+  colnames()
+
+dep_all <- sent_models("COVID1_mfq_cont", varbs = outcomevarbs2, data = data_t1)
+anx_all <- sent_models("COVID1_gad_cont", varbs = outcomevarbs2, data = data_t1)
+wb_all <- sent_models("COVID1_wemwbs_cont", varbs = outcomevarbs2, data = data_t1)
+# Put together all the results of the models
+lms_all <- list("depression" = dep_all, "anxiety" = anx_all, "well-being" = wb_all)
+lms_all <- dplyr::bind_rows(lms_all, .id = 'id')
+
+# Now just disply the variables that were tested in the first hypothesis. 
+
+feelings2 <- c("liwc_affect", "liwc_posemo", "liwc_negemo", "liwc_anx", 
+              "liwc_anger", "liwc_sad", 
+              "vader_negative", "vader_neutral", "vader_positive", "vader_compound", 
+              "labmt_emotion_valence")
+
+# Patterns of Life features
+pol2 <- c("n.tweets", "retweet.prop", "night.prop", "time_num")
+
+lms_all %>% 
+    filter(sentiment_varb %in% c(feelings2, pol2)) %>%
+    select(id, sentiment_varb, p.value_sentiment_varb, estimate_sentiment_varb, sent_varexp) %>%
+    # Make a varb for the sign of the estimate
+    mutate(sign = factor(sign(estimate_sentiment_varb))) %>%
+    mutate(sign = recode(sign, "1" = "+", "-1" = "-")) %>%
+    mutate(id = recode(id,  "depression"= "Depression", "anxiety" = "Anxiety", 
+                             "well-being" = "Well-being")) %>%
+  select(id, sentiment_varb, sign, sent_varexp, p.value_sentiment_varb) %>%
+  mutate(across(where(is.numeric), round, 3)) %>%
+  rename(
+        "Outcome" = "id",
+        "Direction of Effect" = "sign",
+        "Variable" = "sentiment_varb",
+        "Variance Explained" = "sent_varexp",
+        "p-value" = "p.value_sentiment_varb"
+    ) %>%
+    select(-Outcome) %>%
+    mutate(Variable = lapply(Variable, sent_rename)) %>%
+    kbl(booktabs = TRUE,
+        caption="This table displays the variance accounted for by each of the sentiment variables that align with standard codings of emotion, as well as patterns of life, when regressed gainst depression, anxiety or well-being, and adjusted for sex and generation.") %>%
+    kable_styling(position = "center") %>%
+    pack_rows("Depression", 1, 12) %>%
+    pack_rows("Anxiety", 13, 24) %>%
+    pack_rows("Well-being", 25, 36) 
+```
+
+
+Table \@ref(tab:assocall) gives the results of testing all associations of sentiment variables against each of the mental health outcomes when no aggregation by individual was conducted. 
+
+```{r assocall}
+
+lms_all %>% 
+    filter(p.value_sentiment_varb < 0.001) %>%
+    mutate(sign = factor(sign(estimate_sentiment_varb))) %>%
+    mutate(sign = recode(sign, "1" = "+", "-1" = "-")) %>%
+    select(id, sentiment_varb, sign, sent_varexp, p.value_sentiment_varb) %>%
+    group_by(id) %>%
+    arrange(desc(sent_varexp), .by_group = TRUE) %>%
+    ungroup() %>%
+    mutate(sent_varexp = round(sent_varexp, 2)) %>%
+    mutate(p.value_sentiment_varb = round(p.value_sentiment_varb, 3)) %>%
+    rename(
+        "Outcome" = "id",
+        "Direction of Effect" = "sign",
+        "Variable" = "sentiment_varb",
+        "Variance Explained" = "sent_varexp",
+        "p-value" = "p.value_sentiment_varb"
+    ) %>% 
+    select(-Outcome) %>%
+    mutate(Variable = lapply(Variable, sent_rename)) %>%
+    kbl(booktabs = TRUE,
+        caption="This table displays the variance accounted for by each sentiment variable with p < 0.001 when regressed against depression, anxiety or well-being, and adjusting for sex and generation with no aggregation by individual.") %>%
+    kable_styling(position = "center") %>%
+    pack_rows("Anxiety", 1, 16) %>%
+    pack_rows("Depression", 17, 21) %>%
+    pack_rows("Well-being", 22, 31) 
+
+rm(dep_all, anx_all, wb_all, outcomevarbs2)
+
+```
+
+\clearpage
+## Tables of Results Accompanying Figures
+
+```{r balloontable}
+sent_rename_dat <- read.csv(here("index", "data", "sentiment", "sent_rename.csv"), header = TRUE)
+
+feelings <- c("liwc_affect.mean", "liwc_posemo.mean", "liwc_negemo.mean", "liwc_anx.mean", 
+              "liwc_anger.mean", "liwc_sad.mean", 
+              "vader_negative.mean", "vader_neutral.mean", "vader_positive.mean", "vader_compound.mean", 
+              "labmt_emotion_valence.mean",
+              "liwc_affect.var", "liwc_posemo.var", "liwc_negemo.var", "liwc_anx.var", 
+              "liwc_anger.var", "liwc_sad.var", 
+              "vader_negative.var", "vader_neutral.var", "vader_positive.var", "vader_compound.var", 
+              "labmt_emotion_valence.var")
+
+# Patterns of Life features
+pol <- c("n.tweets", "retweet.prop", "night.prop", "time_num.mean", "time_num.var")
+
+lms %>% 
+    filter(sentiment_varb %in% c(feelings, pol)) %>%
+    select(id, sentiment_varb, p.value_sentiment_varb, estimate_sentiment_varb, sent_varexp) %>%
+    left_join(., sent_rename_dat, by = c("sentiment_varb" = "old.name")) %>%
+    mutate(Estimate = paste0(signif(estimate_sentiment_varb, 4), " (", round(p.value_sentiment_varb, 3), ")")) %>%
+    mutate(VarianceExp = round(sent_varexp, 3)) %>%
+    select(id, group, name, Estimate, VarianceExp) %>%
+    mutate(id = recode(id,
+                             "depression"= "Depression", "anxiety" = "Anxiety", 
+                             "well-being" = "Well-being")) %>%
+    pivot_wider(names_from=id, values_from = c(Estimate, VarianceExp)) %>%
+    rename(Group = group, `Variable` = name) %>%
+    arrange(Group) %>%
+    select(Variable, Estimate_Anxiety, VarianceExp_Anxiety, Estimate_Depression, VarianceExp_Depression, `Estimate_Well-being`, `VarianceExp_Well-being`) %>%
+   kbl(booktabs=TRUE, 
+        col.names = c("Variable",
+                      "Estimate (p-val)",
+                      "Variance Explained",
+                      "Estimate (p-val)",
+                      "Variance Explained",
+                      "Estimate (p-val)",
+                      "Variance Explained"
+                      ),
+        caption = "Table of the results displayed in Chapter 6, Figure 6.11. The results of regression models of each sentiment variable against depression, anxiety and general well-being, adjusted for sex and generation. The percentage variance explained after sex and generation have been accounted for is given.") %>%
+  kable_styling(latex_options = c("striped", "hold_position", "scale_down")) %>%
+  kableExtra::add_header_above(c("", "Anxiety" = 2, "Depression" = 2, "Well-being"= 2)) %>%
+  pack_rows("LabMT", 1, 2) %>%
+  pack_rows("LIWC (Affective Processes)", 3, 14) %>%
+  pack_rows("Patterns of Life", 15, 19) %>% 
+  pack_rows("VADER", 20, 27)
+
+```
+
+```{r alloptstable}
+
+all_mods %>%
+    # Rename some of the variables to prepare them for plotting
+  mutate(weight = fct_recode(as.character(weight), !!!weights_rename),
+         weight = fct_relevel(weight, "None", "1", "2", "3", "4")) %>%
+  mutate(mh_varb = fct_recode(mh_varb, "Depression" = "mfq", "Anxiety" = "gad", "Well-being" = "wemwbs"),
+         mh_varb = fct_relevel(mh_varb, "Depression", "Anxiety", "Well-being")) %>%
+  mutate(window_len = paste0(window_len, " weeks"),
+         window_len = factor(window_len, levels = c("2 weeks", "4 weeks", "6 weeks", "8 weeks", "12 weeks"))) %>%
+  pivot_wider(names_from = mh_varb, values_from = rsq) %>%
+  kbl(booktabs = TRUE,
+      col.names = c("Window length", "Wave", "Weight", "Depression", "Anxiety", "Well-being"),
+      caption = "This table represents the results from Chapter 6, Figure 12. The mean R Squared value obtained from 10 x 5-fold cross validation plotted for the outcomes of depression, anxiety and well-being. The input data contains an increasing number of weeks, and difference weighting functions were used on each number of weeks of data.") %>%
+    kable_styling(latex_options = c("striped", "hold_position"))
+
+
+```
+
+\clearpage
+## Prediction error
+
+```{r residuals, fig.cap="Histogram of the residual errors from predictions of Survey 2 outcomes, using the linear models trained on Survey 1. Residuals for depression and anxiety were calculated after exponentiating the estimate, which is predicted on a log scale.", out.width="100%", fig.width = 9, fig.height = 4}
+
+t2dat %>%
+  select(wb_err, dep_err, anx_err) %>%
+  rename("General Well-being" = wb_err,
+         "Depression" = dep_err,
+         "Anxiety" = anx_err) %>%
+  pivot_longer(cols = everything(), names_to = "outcome", values_to = "pred") %>%
+  mutate(outcome = as.factor(outcome),
+         outcome = fct_relevel(outcome, "Depression", "Anxiety", "General Well-being")) %>%
+  ggplot(aes(x=pred)) +
+  geom_histogram(aes(fill = outcome)) +
+  facet_grid(cols = vars(outcome), scales = "free") + 
+  theme_light() + 
+  xlab("Residual Error\n") + 
+  ylab("\nCount of participants") + 
+  theme(legend.position = "none")
+
+```
+
+```{r pandemicpred-error, fig.cap = "The graph of predictions made by the models for depression, anxiety and general well-being over the pandemic period using the final models trained on 2 weeks of Twitter data. This version contains the prediction intervals estimated for each forntightly prediction.", out.width="100%"}
+
+start_date <- dmy("01/01/2020") + dweeks(2)
+end_date <- dmy("31/10/2020")
+
+date = start_date
+pandemic_fortnights <- list()
+
+while (date <= end_date-dweeks(2)) {
+  # Get the dataset for whatever the date is
+  pandemic_fortnights[[as.character(date)]] <- get_model_data2(
+    twitter=twitter, weight=1, end_date=date, window_len=2) %>%
+    mutate(n.tweets01 = range01(n.tweets))
+  # Now, increment the date by 2 weeks
+  date <- date + dweeks(2)
+}
+
+dep_preds <- get_predictions(datalist = pandemic_fortnights, model = deplm) %>% mutate(Outcome = "Depression") 
+anx_preds <- get_predictions(datalist = pandemic_fortnights, model = anxlm) %>% mutate(Outcome = "Anxiety") 
+wb_preds <- get_predictions(datalist = pandemic_fortnights, model = wblm) %>% mutate(Outcome = "Well-being")
+
+rm(pandemic_fortnights, start_date, end_date)
+
+list(dep_preds, anx_preds, wb_preds) %>% 
+  reduce(bind_rows) %>%
+  select(-id) %>%
+  pivot_longer(cols = c(everything(), -Outcome), names_to = c("Week", "Type"), names_pattern = "(.*)_(.*)" , values_to = "Value") %>%
+  drop_na() %>%
+  group_by(Outcome, Week, Type) %>%
+  summarise(mean = mean(Value)) %>%
+  ungroup() %>%
+  pivot_wider(names_from = "Type", values_from = "mean") %>%
+  mutate(Outcome = as.factor(Outcome), 
+         Outcome = fct_relevel(Outcome, "Depression", "Anxiety", "Well-being")) %>%
+  mutate(Week = ymd(Week)) %>%
+  ggplot(aes(x=Week, y=pred, color = Outcome)) +
+  # Plot the prediction interval
+  geom_ribbon(aes(ymin = lwr, ymax = upr), fill = "grey70") +
+  # Plot the predictions
+  geom_line() + 
+  theme_minimal() +
+  scale_x_date(breaks = scales::breaks_pretty(20)) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+        legend.position = "none") +
+  facet_grid(rows = vars(Outcome), scales = "free") +
+  ylab("Mean of Prediction Per Fortnight\n") + 
+  xlab("\nDate") 
+
+```

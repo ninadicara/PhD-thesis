@@ -1,0 +1,48 @@
+<style>
+body {
+text-align: justify}
+</style>
+
+\textbf{ADHD} - Attention Deficit Hyperactivity Disorder <br>
+
+\textbf{AI} - Artificial Intelligence <br>
+
+\textbf{ALSPAC} - Avon Longitudinal Study of Parents and Children <br>
+
+\textbf{API} - Application Programming Interface <br>
+
+\textbf{BPD} - Borderline Personality Disorder <br> 
+
+\textbf{BPN} - Basic Psychological Needs <br>
+
+\textbf{DOI} - Digital Object Identifier <br>
+
+\textbf{EMA} - Ecological Momentary Assessment <br>
+
+\textbf{GAD} - Generalised Anxiety Disorder <br>
+
+\textbf{JITAI} - Just In Time Adaptive Interventions <br>
+
+\textbf{LIWC} - Linguistic Inquiry Word Count <br>
+
+\textbf{MFQ} - Mood and Feelings Questionnaire <br>
+
+\textbf{MIL} - Meaning In Life <br>
+
+\textbf{ML} - Machine Learning <br>
+
+\textbf{NHS} - National Health Service <br>
+
+\textbf{OCD} - Obsessive Compulsive Disorder <br>
+
+\textbf{PTSD} - Post-traumatic Stress Disorder <br>
+
+\textbf{RMSE} - Root Mean Square Error <br>
+
+\textbf{SAD} - Seasonal Affective Disorder <br>
+
+\textbf{UK} - United Kingdom <br>
+
+\textbf{US} - United States <br>
+
+\textbf{WEMWBS} - Warwick Edinburgh Mental Well-being Scale <br>

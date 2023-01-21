@@ -1,0 +1,615 @@
+```{r include_packages5, include = FALSE}
+# This chunk ensures that the thesisdown package is
+# installed and loaded. This thesisdown package includes
+# the template files for the thesis and also two functions
+# used for labeling and referencing
+if(!require(devtools))
+  install.packages("devtools", repos = "http://cran.rstudio.com")
+if(!require(dplyr))
+    install.packages("dplyr", repos = "http://cran.rstudio.com")
+if(!require(ggplot2))
+    install.packages("ggplot2", repos = "http://cran.rstudio.com")
+if(!require(ggplot2))
+    install.packages("bookdown", repos = "http://cran.rstudio.com")
+if(!require(thesisdown)){
+  library(devtools)
+  devtools::install_github("ismayc/thesisdown")
+  }
+library(thesisdown)
+```
+
+```{r setup5, include = FALSE}
+
+# Set markdown defaults
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE, cache = TRUE)
+
+library(dplyr)
+library(tibble)
+library(tidyr)
+library(ggplot2)
+library(kableExtra)
+
+```
+
+# A review of methodologies for monitoring mental health on Twitter {#scoping-review}
+
+
+## Abstract {-}
+
+**Background** The use of social media data in predicting mental health outcomes has the potential to allow for continuous monitoring of mental health and well-being, and to provide timely information that can supplement traditional clinical assessments. 
+However, it is crucial that the methodologies used to create models for this purpose are of high quality from both a mental health and machine learning perspective. 
+Twitter has been a popular choice of social media due to the accessibility of its data, but access to big datasets is not a guarantee of robust results. 
+Here I review the current methodologies used in the literature for predicting mental health outcomes from Twitter data, with a focus on the quality of underlying mental health data and machine learning methods used.
+
+**Method** A systematic search was used across six databases with keywords relating to mental health disorders, algorithms, and social media. 2,759 records were screened, from which 165 papers were analysed. Information about methodologies for data acquisition, pre-processing, model creation and validation were collected, as well as replicability and ethical considerations.
+
+**Results** The 165 papers reviewed used 120 primary datasets. 
+There were an additional 8 datasets identified that were not described in enough detail to include, and 10 papers did not describe their datasets at all. 
+Of these 120 datasets, only 16 had access to ground truth data (i.e. known characteristics) about the mental health disorders of social media users. 
+The other 104 datasets collected data by searching key words or phrases, which may not be representative of patterns of Twitter use for those with mental health disorders. 
+The annotation of mental health disorders for classification labels was variable and 68 out of 120 datasets had no ground truth or clinical input on this annotation.
+Despite being a common mental health disorder, anxiety received little attention.
+
+**Conclusions** The sharing of high-quality ground truth datasets is crucial for the development of trustworthy algorithms which have clinical and research utility. 
+Further collaboration across disciplines and contexts is encouraged to better understand what types of predictions will be useful in supporting management and identification of mental health disorders. 
+In communicating their studies researchers should be explicit in exactly what their models predict, use appropriate evaluative metrics, and ensure their reported methodologies allow for accurate interpretation of their results.
+
+## Aims {-}
+
+This chapter aims to understand where the current limitations of the literature around mental health inference from social media lie, and identify areas which could be targeted to improve the quality of future research.
+
+
+\newpage
+## Introduction
+
+The detection of signals of mental health through hetergeneous data, known as *digital phenotypes* [@torous2016new], is a rapidly evolving field of research that requires interdisciplinary expertise in both the behavioural psychology of mental health, and the computational modelling of associated behaviours using digital footprint data [@CorreiaWoodBollenRocha_2020]. 
+Social media has been a popular platform for accessing data to investigate digital phenotypes [@Loi_2019; @RuthsPfeffer_2014], and has provided a promising opportunity to model individual and interpersonal behaviours to further understand typically private topics such as hate speech [@WilliamsBurnapJavedLiuOzalp_2019] and political ideation [@AlizadehWeberCioffi-RevillaFortunatoMacy_2019], as well as mental health. 
+Whilst there are a range of possible social media platforms which could be used for analysis, Twitter (https://twitter.com) has been a popular choice for research due to its public-facing design and readily available application programming interface (API) which enables easy access to data for research [@PrietoMatosAlvarezCachedaOliveira_2014; @wongkoplap2017review]. 
+
+Currently mental illness is one of the leading causes of the overall global disease burden [@burdenofdisease2013], with depression estimated to be one of the most prevalent diseases worldwide [@WhitefordDegenhardtRehmBaxterFerrariErskineCharlsonNormanFlaxmanJohnsBursteinMurrayVos_2013]. 
+The implications of mental ill health are profound on both a micro and macro scale, from personal relationships to the global economic burden [@trautmann2016economic; @fekadu2019multidimensional]. 
+As a result there has been increasing interest in the potential of data-driven methods to provide a new approach to early detection and prevention of mental health disorders [@MedicalResearchCouncil_2017; @NaslundGonsalvesGruebnerPendseSmithSharmaRaviola_2019; @russ2019data; @TorousBaker_2016; @WorldHealthOrganizationWHO_2013], particularly for young people [@NaslundGonsalvesGruebnerPendseSmithSharmaRaviola_2019], which could serve to promote access to mental health care, and improve opportunities for self or clinical monitoring. 
+The use of data created through day-to-day technology use could even contribute to clinical assessments by health care professionals, who typically use questionnaire-style diagnostic tools which can be biased by a patient's retrospective recall [@SolhanTrullJahngWood_2009] and so cannot always provide an accurate overview of a patient's well-being for weeks, or months, at a time. 
+Additional benefits of using social media data are the ability to collect data on populations of people with less common mental health disorders such as schizophrenia or PTSD, which is generally not possible outside of a clinical environment.
+
+### Themes from previous reviews
+
+There have been a series of reviews on the topic of mental health inference from social media, all of which have focussed on a range of social media platfoms.
+The key reviews identified were by Wongkoblap et al. in 2017 [@wongkoplap2017review], Guntuku et al. in 2017 [@guntuku2017detecting], Chancellor and De Choudhury in 2020 [@chancellor2019who] and Kim et al. [@kim2021systematic] in 2021. 
+Despite the potential for digital footprint data to drive advances in the monitoring and detection of mental health outcomes previous research and reviews in the field have raised significant concerns about the current literature. 
+These concerns center around the validity of ground truth mental health data, methodological clarity and the ethics of the research and its proposed applications.
+
+Firstly, there have been concerns about the quality of data used to train models for mental health inference due to poor construct validity in the generation of data labels [@ErnalaBirnbaumCandanRizviSterlingKaneDeChoudhury_2019; @wongkoplap2017review; @chancellor2020methods]. 
+For machine learning to be effective, the labels that a supervised-learning algorithm should be 'learning' from (i.e. the ground truth) should represent the same construct that the researcher intends for the model to predict in the future; construct validity refers to this equivalence between the label and the construct intending to be predicted. 
+Systematic reviews by both Wongkoblap et al. [@wongkoplap2017review] and Chancellor and De Choudhury [@chancellor2020methods] found that using self-reports and affiliations were a very common method for constructing datasets. 
+This means that studies use datasets for training that are constructed and labelled based on self-reports of mental health disorders in tweets (for instance a user tweeting "I have depression") or based on affiliation with accounts about a specific disorder (such as following an account that tweets about experiences of PTSD) [@wongkoplap2017review; @chancellor2020methods]. 
+Research by Ernala and colleagues [@ErnalaBirnbaumCandanRizviSterlingKaneDeChoudhury_2019] showed that whilst positive cases identified through self-report and affiliations led to fairly good performance for schizophrenia prediction when validated on the same dataset, they performed poorly when validated against a separate dataset whose diagnoses had been assigned by clinicians. 
+The poor performance of models using assumed ground truth information when tested on clinically validated ground truth suggests that the construct validity of using self-report and affiliations as ground truth is likely to be unsatisfactory for transferring models to a real-world setting. 
+Chancellor and De Choudhury [@chancellor2020methods] found that only 17 of the 75 studies they included used methods to obtain ground truth that had validity external to the training dataset, such as from participants themselves, news reports about their deaths, or their medical records.
+
+As well as concerns about the data being used to train models in the literature, previous reviews [@chancellor2019who; @chancellor2020methods; @wongkoplap2017review, @kim2021systematic] have also identified a lack of transparency and clarity in the methodologies used to produce models. 
+It is common for researchers not to declare important details such as the features included in their models [@chancellor2020methods], and also uncommon for researchers to include data availability statements [@wongkoplap2017review; @bps2021ethics]. 
+The review by Chancellor and De Choudhury [@chancellor2020methods] found that only 42% of the 75 papers included reported on all five of what they considered to be minimum reporting criteria, which were: the number of samples or data points, the number of variables/features, algorithm or regression chosen, at least one validation method and their explicit fit or performance metrics. 
+Overall, the lack of clarity and transparency makes it difficult to assess how research has been conducted, and therefore to compare results between papers and determine the quality of research methods [@kim2021systematic].
+
+Aligned to concerns about the sourcing of ground truth data, another issue that has been raised is the characterization of mental health in general, recognising that the mathematical modelling of a psychological construct requires making assumptions about the way it can be captured as data [@fried2017psychological].
+Chancellor et al. [@chancellor2019who] conducted a discourse analysis of the ways that researchers wrote about the people behind the data being used in mental health inference from social media, and found it was often unclear whether the research was considering people or individual tweets. 
+Notwithstanding that there is a significant assumption in using a single tweet as being indicative of depression, this also makes it challenging to understand both the analysis and the results of the proposed models since what is being predicted, tweet or individual outcome, is not reported. 
+Additionally, representing mental health outcomes as a binary also implies certain assumptions about the way the researcher has chosen to model mental health outcomes, which does not allow for a range of symptom severity or allow for the possibility of co-morbidity which is generally high amongst common mental health disorders like anxiety and depression [@hirschfeld2001comorbidity; @chancellor2019who].
+
+Lastly, all previous reviews have highlighted ethics as an ongoing concern. 
+The ethical concerns generally refer to the privacy of the individuals whose data is often being used without their knowledge or consent, the sharing of datasets that contain inferred information about those individuals (e.g. a suspected mental health disorder) and the implications of sharing models that could publicly infer information about individuals who had no association with the original study. 
+Outside of the research itself, there are outstanding questions regarding the ethics of using the proposed systems in practice, such as the impact of misclassification on patients [@guntuku2017detecting]. 
+It is worth noting that these ethical concerns are also an ongoing discussion in the critical algorithm literature [@chancellor2019taxonomy; @conway2014ethical].  
+
+### The purpose of the present study {#purpose}
+
+The most recent systematic review that covered all papers published on the topic of predicting mental health from social media sites was the review by Chancellor and De Choudhury [@chancellor2020methods] in 2020. They proposed a list of modelling decisions and outcomes that should be reported in all studies to improve methodological clarity in response to their findings of insufficient methods reporting across 57% of the 75 included studies. 
+This review included literature up to 2018 and considered research on a range of 12 social media sites. 
+
+Since this review took place there have been 4 years of new literature to account for.
+In this time there has been a significant trend in the sciences, especially psychology, towards open science and the improved sharing of data and methodological decisions fuelled by the so-called replication crisis [@camerer2018evaluating; @klein2018many]. 
+Ethical concerns have also received greater attention in the past few years, especially in fields using social media data, in the wake of the Cambridge Analytica scandal.
+The scandal, which broke in 2018, revealed that millions of people's Facebook data were used to analyse and infer their personal characteristics for political advertising. 
+Given these wider cultural changes, the time since previous reviews and also the opportunity for recommendations from previous reviews in 2017 [@wongkoplap2017review; @guntuku2017detecting] to have been incorporated into new research, I intend to provide an updated review in the area of mental health inference from social media. 
+Specifically this review focusses on the social networking site Twitter, since the updated nature of the review includes the time period where research access to the Facebook and Instagram APIs, two of the most popular social media sites, were removed to provider tighter controls on user data. No such controls were implemented on Twitter. 
+
+I conducted a review of the existing literature on prediction of mental health disorders and mental well-being from Twitter by implementing a systematic search to find papers published between 2013 and December 2021. 
+My aims were similar to those posed in previous reviews [@wongkoplap2017review; @guntuku2017detecting; @chancellor2020methods], in that they focus on methodological processes rather than necessarily the results of the research.
+I set out to evaluate:
+
+* the machine learning methodologies used, such as the ways that pre-processing, feature selection, modelling and validation were conducted,
+* the datasets that were being used by each paper, such as how the datasets were collected and how mental health outcomes were labelled in these datasets to achieve construct validity,
+* the replicability of each paper, 
+* whether or not each paper discussed any ethical considerations. 
+
+Uniquely this review aimed to include well-being constructs as well as mental health disorders, and also aimed to understand methods to construct datasets as separate to the methods to model mental health, which allowed for analysis of the prevalence of dataset re-use and which datasets are particularly popular.
+
+As is crucial in interdisciplinary work, I first wish to establish some shared understanding with the reader on the use of terminology through this paper [@MonteiroKeating_2009]. 
+Here, I take ‘prediction’ to be an algorithmic decision to assign an unseen piece of data to a category (e.g. depressed or not depressed), without meaning prediction of the future [@JamesWittenHastieTibshirani_2013]. 
+I also make distinctions between *mental health*, and a *mental health disorder*  with the term *mental health disorder* reserved for references to a medical condition, and is separate from, but related to, general mental health and well-being [@Keyes_2005; @Slade_2010]. *Mental health outcomes* refers to both mental health disorders and specific well-being constructs (for instance, general well-being, happiness, life satisfaction or self-esteem). 
+
+## Methods
+
+### Search Methodology
+
+On the 7th May 2019 and with two update searches on 26th October 2019 and 6th December 2021, a search of six electronic databases was conducted, (Web of Science, Scopus, PubMed, and Ovid MEDLINE, PsychInfo and PsychArticles), as well as a Google Scholar Search. 
+The search was for peer-reviewed articles or papers that contained terms related to mental health disorders and well-being, machine learning and Twitter in their title or abstract (see Supplementary Material in Section \@ref(searchterms) for the full list of search terms). 
+Each search was refined for the requirements of the database. 
+Results were required to have been published in 2006 or later, to avoid unrelated publications from before Twitter was created.
+
+Several key review papers in the field of mental health prediction from social media were identified prior to the systematic review [@wongkoplap2017review; @guntuku2017detecting; @chancellor2020methods; @kim2021machine] and 16 other review papers in related fields were identified through the systematic review process [@AbdDanuri_2018; @SundarrajanAneesha_2018; @giuntini2020review; @edo2020scoping; @verma2021survey; @kim2021systematic; @bilal2019analysis; @abd2020application; @le2021machine; @zunic2020sentiment; @babu2022sentiment; @pourmand2019social; @castillo2020suicide; @beriwal2021techniques; @william2021text; @skaik2020using]. 
+Secondary citations from all of these reviews were included in the screening phase if they had not already been identified through the database search.
+Lastly, a small number of papers were identified through recommendations from colleagues and referencing software.
+
+### Screening Methodology
+
+Rayyan software [@OuzzaniHammadyFedorowiczElmagarmid_2016] was used to identify and remove duplicates from the results and was used to review the titles and abstracts to screen papers for a full-text review. 
+At this stage, papers which appeared to be irrelevant, for instance relating to personal social networks as opposed to online social networks, or having no relevance to mental health, were removed.
+
+A full text review was then conducted on the remaining 651 papers. At this stage inclusion criteria were as follows:
+
+1) The paper considered data from Twitter in order to build the algorithm. Despite being similar to Twitter, Weibo was excluded due to some differences in data types available and the nature of use.
+2) The paper was not considering a specific group of people, such as veterans or new mothers.
+3) The paper considered a mental health disorder or specific well-being construct, rather than a less specific concept such as stress. This was based on the paper's title and what it stated it was predicting.
+4) The paper was training a model for the purposes of inference, rather than solely analysis of features.
+
+This full text review left 165 papers which met the criteria for inclusion in the analysis.
+
+### Data Collection
+
+Literature searching, screening and analysis were completed by myself.
+For each included study I recorded the details of the mental health outcome studied, machine learning algorithms used, features and model input, useful validation and evaluation strategies used to assess models, and the reported results. 
+For each primary dataset identified, meaning those where data was collected by the research team and not reused from an existing study, I also recorded the method of data collection, the key characteristics of the dataset, how data was annotated and any quality control processes used. 
+A complete record of identified and reviewed papers is included in the online Supplementary Material (doi: [10.17605/OSF.IO/HYD9G](https://www.doi.org/10.17605/OSF.IO/HYD9G)).
+
+## Results
+
+Figure \@ref(fig:prisma) illustrates the number of papers included at each stage of the screening process. 
+
+```{r prisma, fig.cap="PRISMA flow diagram of inclusion and exclusion figures for the literature search", out.width="80%", fig.align='center'}
+
+include_graphics(path = "figure/scoping-review/PRISMA.png")
+
+```
+
+Table \@ref(tab:yearcounts) gives how many of the papers included were published in each year, and shows that 45% of papers identified on this topic were published in 2019 onwards, which is after the date that previous reviews have included. 
+
+```{r yearcounts, out.width="100%"}
+
+disorders <- read.csv("figure/scoping-review/disorder-year.csv")
+
+disorders %>% 
+  count(Year) %>%
+  rename("N Papers" = "n") %>%
+  kableExtra::kbl(., caption="The number of papers included in the review that were published each year.", 
+                  booktabs=TRUE) %>%
+  kable_styling(latex_options="striped")
+
+```
+
+### Mental health outcomes predicted
+
+```{r mhnetwork, echo=FALSE, dpi=300, fig.cap="Network digram showing which mental health disorder (pink) each paper (blue) attempted to infer.\\protect\\footnotemark Depression and suicidality have been the most popular, with most papers attempting to predict a single outcome.", out.width="80%", fig.align='center'}
+
+include_graphics(path = "figure/scoping-review/network.png")
+
+```
+
+\footnotetext{Acronyms: Attention Deficit Hyperactivity Disorder (ADHD), Borderline Personality Disorder (BPD), Obsessive Compulsive Disorder (OCD), Post Traumatic Stress Disorder (PTSD), Seasonal Affective Disorder (SAD)}
+
+Figure \@ref(fig:mhnetwork) outlines the network of mental health disorders the included papers covered. 
+It illustrates that depression was the most common target, and was predicted in 93/165 papers (56%), followed by suicidality (31%), PTSD (8%) and anxiety (8%).
+It was most common for studies to approach this problem as a single-class prediction, though 26 of the 165 papers considered more than one mental health disorder.
+
+```{r disorderyear, dpi = 300, fig.width=8, fig.height=5, fig.cap="The number of studies considering each mental health disorder published each year. To be presented in this figure the mental health disorder needed to be included in more than two studies.\\protect\\footnotemark", out.width="100%"}
+
+disorders %>%
+  group_by(Year) %>%
+  summarise(across(everything(), sum, na.rm=TRUE)) %>% 
+  column_to_rownames("Year") %>%
+  t(.) %>%
+  as.data.frame() %>%
+  filter(rowSums(across(where(is.numeric))) > 2) %>% # Select only those disorders that have been used more than twice
+  rownames_to_column("Mental Health Disorder") %>%
+  filter(`Mental Health Disorder` != "Generic") %>%
+  pivot_longer(cols = c(`2013`:`2021`), names_to = "Year", values_to = "N") %>%
+  filter(N > 0) %>%
+  # Plotting the data
+  ggplot(aes(x=Year, y = N)) +
+  geom_bar(stat = "identity", fill = "#00BFC4") + 
+  facet_wrap(vars(`Mental Health Disorder`), nrow = 2) +
+  theme_light() +
+  geom_text(aes(label = `N`, vjust = -1), size=3) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  ylab("Number of studies\n") + 
+  ylim(0,30) + 
+  xlab("\nYear")
+
+
+```
+
+\footnotetext{Acronyms: Borderline Personality Disorder (BPD), Obsessive Compulsive Disorder (OCD), Post Traumatic Stress Disorder (PTSD)}
+
+Figure \@ref(fig:disorderyear) shows there has been an increase since 2019 in the number of studies being published on this topic, but they are dominated by studies about depression and, to some extent, suicidality.
+Analysis of other disorders has remained fairly static over time. 
+Whilst there is a tendency overall to focus on mental health disorders, there was one study that included prediction of happiness and self-esteem [@mori2021differential]. 
+
+### Datasets {#datasets}
+
+One of the aims of this review was to analyse the unique datasets that were being used for prediction of mental health outcomes across the included studies.
+Overall, I identified 128 unique datasets as coming from 155 papers included in this review which I will refer to as *primary* datasets; 10 papers did not provide a description of the dataset to understand the dataset being used. 
+Of these 128 datasets, 8 were not described in enough detail for it to be possible to generate any detail for analysis.
+This was usually due to links to dataset sources being invalid, or links to online datasets which were not actually described in the text.
+This left 120 unique datasets that contained enough detail to be analysed.
+
+All the studies identified for this review used an annotated dataset to train prediction models. 
+*Annotation* refers to the process by which each observation or data point that will be used to train the model is given an outcome that the model is trained to predict. 
+In this case, the annotations are expected to be a mental health outcome. 
+
+Different studies take different approaches to the process of collecting and annotating their datasets, and in this section I give an overview of these processes for the 120 datasets that were adequately described.
+Then, since some studies used primary datasets that were developed and shared by others, I also give a brief description of which datasets were those that were most commonly re-used. 
+The full table of results with the data extracted from each paper and dataset are available in the online Supplementary Material (doi: [10.17605/OSF.IO/HYD9G](https://www.doi.org/10.17605/OSF.IO/HYD9G)).
+
+#### Descriptions of data collection 
+
+To understand approaches to data collection I recorded whether the description of the dataset specified the number of tweets included in the final dataset, how many individual users were in the dataset, the time period over which Twitter data were collected, the API or tool used to access the Twitter data and the search query or strategy used to collect the data.
+These were chosen because they represent basic descriptive information that is important for interpreting the results of the studies, and also represent reasons that some studies may find differing results. 
+For example, using data from different time periods, different APIs and different search queries to access data would all result in different samples, and these may then yield different predictions when addressing the same core question. 
+
+Out of the descriptions of the 120 datasets included I found that 68/120 (57%) datasets had the number of users in the dataset, 96/120 (80%) how many tweets were in the dataset, 66/120 (55%) the time period over which the data were collected from Twitter, 84/120 (70%) which API or tool was used to access the Twitter data and 108/120 (90%) the search strategy they used to query the API.
+The smallest described dataset was Coello-Guilarte et al. [@coello2019crosslingual] with 200 annotated tweets, the largest being Shen et al. [@ShenJiaNieFengZhangHuChuaZhu_2017] with over 300 million tweets from users they determined to be depressed, and 10 billion control tweets. 
+
+#### Annotating mental health outcomes 
+
+Next, I recorded information about how the data were annotated with mental health labels.
+This included the method used to attribute labels to the tweets or users, and whether there was any secondary quality control conducted by human annotators if an automated method was used. 
+Additionally I evaluated the range of methods that were used to develop control samples of tweets or users who do not display the mental health outcome that is being predicted. 
+
+I originally intended to also record whether annotations were being made at the tweet or user level, but unfortunately it was not common for studies to specify which of these approaches they were taking, and so not possible to summarise the frequencies seen in the papers reviewed.
+
+```{r datalabels}
+
+tbl <- data.frame(
+  "Ground truth type" = c("Self report", "Secondary report", "Affiliation", "Keywords", "Self disclosure", "Sentiment label", "Random sample", "Unknown"), 
+  "Description" = c("Completion of a standardised measure, or disclosure of affected time periods by the individual",
+                             "News reports of death by suicide, or data donation by family following death",
+                             "The account either follows or interacts with a system or other accounts known to be associated with the mental health disorder being considered.",
+                             "A certain number/combination of keywords used to search the Twitter API, believed to indicate the presence of the mental health disorder.",
+                             "A phrase such as 'I have been diagnosed with X' is used to search the Twitter API, and used to indicate the presence of the mental health disorder.",
+                             "Some threshold is decided based on a sentiment polarity score that maps it to a mental health outcome.",
+                             "A random sample of tweets are taken from the Streaming API or based on some other criteria, such as a particular language being used, and screened for inclusion",
+                             "Not enough information provided to understand the method for generating ground truth labels."),
+    "Count" = c("12", "4", "2", "52", "29", "2", "5", "14"),
+    "Quality control" = linebreak(c(" ", " ", " ", "Expert 21\nNon-expert 18\nNone 13", "Expert 2\nNon-expert 14\nNone 13", " ", " ", " "), align = "l"),
+    "Examples" = linebreak(c("User scored >30 in Centre for Epidemiological Studies Depression Scale (CES-D)\n
+                             CES-D score used as a continuous variable.", 
+                          "Name reported in the media was searched on Twitter for a user account.", 
+                          "Accounts that had retweeted tweets from a list of accounts about depression were annotated as being depressed", 
+                          "User used the string “depress” more than five times in 2 weeks, and their timeline was reviewed by a clincal psychologist to confirm the assessment was reasonable (expert).\n
+                          User used `depression' at least once in a tweet (none).", 
+                          "String `I have been diagnosed with depression' was used without checking the context (none).\n
+                          String `I have been diagnosed with depression' was used following verification by a clinical psychologist (expert) or a computer science researcher (non-expert).", 
+                          "Sentiment score below -1 meant the user was annotated as depressed.", 
+                          "Tweets in a particular language were accessed from the streaming API and annotated as suicidal if the researcher thought it indicated suicidality.", 
+                          " "), align = "c")
+  )
+
+tbl %>%
+  kableExtra::kbl(.,
+                  align = "l",
+                  escape = F,
+                  booktabs = T,
+                  caption = "Overview of the different methods used to annotate datasets with ground truth labels.",
+                  col.names = c("Ground truth type", "Description", "Count", "Quality Control", "Example")) %>%
+  kable_styling(font_size = 8, latex_options = "striped") %>%
+  column_spec(2, "27em") %>%
+  column_spec(5, "27em") %>%
+  pack_rows("Validated", 1, 2) %>%
+  pack_rows("Data driven", 3, 6) %>%
+  pack_rows("Other", 7, 8) %>%
+  landscape() %>%
+  kableExtra::footnote(., general = "In the row headings, 'Validated' refers to data annotations that have not been assumed from the data collected, and have been validated by either the user themselves or an external source. 'Data-driven' refers to annotations that are derived from the data collected from social media. In terms of Quality Control, 'Expert' annotation was when annotation was done by those who were called experts in the paper, or who were reported as having some educational or practical background in mental health. 'Non-expert' annotation was done by anyone not in the 'Expert' category, for instance undergraduate students or computer science researchers.",
+  threeparttable = TRUE)
+
+```
+
+As Table \@ref(tab:datalabels) illustrates the datasets were annotated in many different ways, but only 16 of the datasets overall were validated by offline ground truth. 
+That is to say that the label was not assumed from the data collected.
+Even within those studies that did use validated scales for ground truth, they could define the threshold score for presence of a disorder from the same scale differently.
+For instance, a CES-D score greater than 30 or a score greater than 22 were both used as cut-off scores for the classification of depression in different studies. 
+Due to the variety of methods presented comparisons between studies could be comparing datasets that have very different definitions of the same mental health outcome. 
+
+Some studies attempted to increase the accuracy of keyword or self-disclosure based annotation by introducing human annotators to the process. 
+However, a handful of studies using this method reported that annotators found it difficult to decide on the category that tweets should be placed in, especially when they were seen without the context of other tweets from the same user [@ODeaWanBatterhamCalearParisChristensen_2015a; @SawhneyManchandaSinghAggarwal_2018]. 
+To overcome this some annotated datasets used more than one annotator in order to assess agreement between annotators, or introduced a third annotator to provide a deciding opinion on conflicting assessments (for example [@alsagri2020quantifying; @yazdavar2020multimodal]).
+As might be expected, there was generally a relationship between the size of a dataset and the level of quality control; highly curated data with labels produced by experts and multiple coders tended to be smaller in volume, and those using largely automated methods were able to produce vast datasets with little human input on the target classification labels.
+
+The vast majority of studies defined mental health as a binary or categorical outcome, as opposed to using a continuous scale.
+This is important since the outcome being predicted indicates a different research question, and ultimately a different purpose.
+For instance, classification of tweets that are 'risky' or 'not risky' in terms of suicidal expression, versus a longitudinal view of change in depressive symptoms.
+This was largely influenced by the approaches to data labelling, where the presence of keywords or self-disclosure do not allow for a measurement of symptom intensity and instead necessitate a binary or categorical approach. 
+
+Since most datasets took a categorical approach to mental health, most also collected control users, which are users who were judged not to have the mental health disorder being identified.
+Approaches to developing a control sample included taking a random sample of tweets from the Streaming API on a particular day, searching for a word or phrase (like "the" or "today is my birthday") in the Search API and using the results as controls, or simply using all those users who were not labelled as positive from the original keyword/phrase search. 
+In some instances studies conducted checks to ensure there were not overlaps between the positive and negative samples, but this was not always stated as being the case.
+In terms of the balance of cases to controls in the datasets, some studies developed datasets in order to intentionally balance cases and controls [@BirnbaumKiranmaiErnalaAsraRizviMaMunmunChoudhuryKane_2017; @CoppersmithLearyCrutchleyFine_2018; @CoppersmithNgoLearyWood_2016; @HeLuo_2016; @KangYoonKim_2016; @MoulahiAzeBringay_2017; @ResnikArmstrongClaudinoNguyen_2015; @TsugawaKikuchiKishinoNakajimaItohOhsaki_2015; @WaheedAslamAwais_2019; @YinFabbriRosenbloomMalin_2015; @ZhouHuWang_2019], whereas others searched using their chosen criteria and took the "naturally occurring" number of cases from their dataset [@Braithwaite_2016; @CoppersmithHarmanDredze_2014; @PrietoMatosAlvarezCachedaOliveira_2014; @ResnikArmstrongClaudinoNguyen_2015; @SawhneyManchandaSinghAggarwal_2018; @ShenJiaNieFengZhangHuChuaZhu_2017; @WangBredeIanniMentzakis_2017].
+
+
+#### Dataset re-use
+
+Of the primary datasets identified there were two that were re-used more often than others. 
+The dataset on depression and PTSD which was produced for the Computational Linguistics and Clinical Psychology (CLPsych) Workshop 2015  [@ResnikArmstrongClaudinoNguyen_2015] was used a total of 10 times, and the dataset produced by Shen et al. [@ShenJiaNieFengZhangHuChuaZhu_2017] for depression prediction in 2017 was used the most often at 14 times. The other most frequently reused datasets were those produced by Burnap et al. [@BurnapColomboAmeryHodorogScourfield_2017] in 2017 for suicidality (4 uses), Jamil et al. [@JamilInkpenBuddhithaWhite_2017] in 2017 for depression (3 uses) and Vioules et al. [@VioulesMoulahiAzeBringay_2018] in 2018 for suicidality (3 uses). 
+Another dataset used in four studies, despite not being produced for mental health prediction, was the 'sentiment140' dataset. 
+This is a Kaggle^[Kaggle is a website where individuals and teams can participate online in data science challenges.] competition dataset where tweets are labelled with their sentiment polarity. 
+
+Finally, the remaining datasets were created by authors for their own use, and occasionally re-used by the same authors over two studies.
+In most cases datasets were created specifically for the task the study was focussed on, and included datasets of tweets in other languages like Spanish [@coello2019crosslingual], Bengali [@victor2020machine], Japanese [@mori2021differential] and Arabic [@alabdulkreem2021prediction]. 
+
+### Modelling workflows
+
+After identifying the dataset to use for training, there are typically a series of stages to go through in order to develop and assess a predictive model. 
+First the researcher must prepare the dataset for use (known as pre-processing), select the features that will be used in the model (known as feature selection), choose and apply an algorithm to create a model from, and then finally validate the model to assess how well it performs on unseen data. 
+
+Not all studies reported their methodologies along each of these four key stages.
+In summary I found that 121/165 (73%) studies described at least some of their pre-processing steps, 138/165 (84%) described the features or feature selection process, 160/165 (97%) described the algorithm/s used and 135/165 (82%) gave some description of their model validation process.
+Figure \@ref(fig:methodsreporting) illustrates that there has not been much change in reporting standards since 2020, and in fact the areas of algorithm choice and feature selection have been reported in fewer papers more recently.
+In the following sub-sections I report on those studies which did include this information by summarising the methodologies that were used across the literature in each stage. 
+
+```{r methodsreporting, fig.width=8, fig.height=3, out.width="100%", dpi = 360, fig.cap="The proportion of studies that reported each of the stages of modelling that I considered, split by those published before 2020 (N=90) and those published in 2020 or later (N=75)."}
+
+# Shows that they are all about the same over time.
+
+methods <- read.csv("data/scoping-review/methods-reporting.csv")
+
+methods %>% 
+  mutate(Year.2 = ifelse(Year < 2020, "Pre-2020", "Post-2020")) %>%
+  mutate(Year.2 = as.factor(Year.2),
+         Year.2 = fct_relevel(Year.2, "Pre-2020", "Post-2020")) %>%
+  rename("Pre-processing" = ML.Preprocessing,
+         "Feature Selection" = ML.Input,
+         "Algorithm Choice" = Model.used,
+         "Validation" = Validation) %>%
+  pivot_longer(cols = c("Pre-processing", "Feature Selection", "Algorithm Choice", "Validation"), names_to = "outcome", values_to = "value") %>% 
+  count(Year.2, outcome, value) %>%
+  group_by(Year.2, outcome) %>%
+  mutate(prop = n/sum(n)) %>%
+  ungroup() %>%
+  filter(value == "Yes") %>%
+  ggplot(aes(x=Year.2, y=prop, fill=Year.2)) +
+  geom_bar(stat = "identity") + 
+  theme_light() +
+  facet_grid(~outcome) + 
+  theme(legend.position = "none") +
+  xlab("") + 
+  ylab("Proportion of studies\n")
+```
+
+
+#### Pre-processing
+
+In natural language processing (NLP), the computational interpretation of written text, it is typical to pre-process or *clean* textual data to prepare it for feature generation and selection. 
+These steps tend to focus on making the text less noisy by removing data that is unlikely to be useful in the predictive task such as stripping non-alphanumeric characters, removing stop words (common or filler words), lemmatising the text (transforming words to their root), or tokenisation (splitting sentences or documents into separate tokens delimited by spaces). 
+
+However, for data taken from social media some pre-processing stages may be adapted to reflect the inherent meaning that, for instance, non-alphanumeric characters and stop words contribute to the text.
+These characteristics of text may also be expected by some sentiment analysis algorithms such as VADER [@hutto2014vader]. 
+Another consideration around internet language is the inclusion of emoji in text. 
+Emoji can have meaning in natural language [@GuibonOchsBellot_2016], and so their inclusion is likely to be relevant in NLP-type tasks. 
+
+A minority of the studies who described their pre-processing stages regarded Twitter's native language of interaction such as hashtags and @-mentions as parts of natural language and retained this information in the tokenisation stage by replacing @-mentions with an @ symbol, or URLS with the word "URL" (e.g. [@CoppersmithNgoLearyWood_2016; @WeerasingheMoralesGreenstadt_2019; @Yazdavar_2017]). Other studies chose to tokenise the text in a more traditional manner, by removing all non-alphanumeric information (e.g. [@BurnapColomboScourfield_2015; @DeChoudhuryCountsHorvitz_2013; @de2013predicting; @CoppersmithDredzeHarman_2015; @DeshpandeRao_2018; @JamilInkpenBuddhithaWhite_2017; @KumarSharmaArora_2019; @OrabiBuddhithaOrabiInkpen_2018]). 
+Papers which included emoji as tokens usually did so by replacing the emoji by the word "emoji"; (e.g. [@CoppersmithNgoLearyWood_2016; @ResnikArmstrongClaudinoNguyen_2015; @Resnik_2015]) or by a unique code for each emoji (e.g. [@KumarSharmaArora_2019; @ShenJiaNieFengZhangHuChuaZhu_2017; @WeerasingheMoralesGreenstadt_2019]). 
+Others removed emoji all together from the text (e.g [@AstovezaObiasPalconRodriguezFabitoOctaviano_2019,  @ChiromaLiuCocea_2018b ; @MoulahiAzeBringay_2017; @ODeaWanBatterhamCalearParisChristensen_2015a; @OrabiBuddhithaOrabiInkpen_2018; @OyongUtamiLuthfi_2018]).
+Variation in these pre-processing strategies means that there are differences in the type of information taken forward to the feature selection and modelling stages.
+
+Some pre-processing decisions that may have impacted the effectiveness of the subsequent model training processes were rarely described. 
+For instance, several studies have replicated a finding that personal pronouns are a useful feature in the prediction of depression (e.g. [@reece2017forecasting; @DeChoudhuryCountsHorvitz_2013]. 
+However, personal and other pronouns may be included in stop word dictionaries (for instance the popular NLTK [@loper2002nltk] stop word list), and so automatically removed from the training data before any feature selection or model fitting has taken place. 
+Additionally, many of the studies used keyword or key-phrase search terms to label 'positive' cases for mental health disorders, but it was not made clear whether the terms used to label the data were removed from the training dataset. 
+For example, if the term "depress" used five times identified a user as being depressed, and this term was present five or more times in the training data of every person who had been labelled as depressed at the modelling stage, then the model may learn that "depress" is reliable signal for depression. 
+
+#### Features
+
+To apply a machine learning algorithm to a dataset, a series of features (also known as variables) have to be constructed. 
+Most papers used some combination of each of the feature types, as described in Table \@ref(tab:features).
+
+```{r features}
+
+feature_table <- data.frame(
+  "Feature type" = c("Text Interpretation", "Demographics", "Connectivity", "Sharing (When)", "Sharing (What)", "Textual features and structure", "Keywords", "Parts of Speech", "Images"),
+  "Number of studies" = c("72", "15", "35", "25", "26", "125", "39", "33", "12"),
+  "Descrption" = c("Features interpreting the meaning of the text, usually through sentiment dictionaries.",
+                   "Known or algorithmically inferred demographic information.",
+                   "Features relating to the user’s social network such as the number of followers or @-mentions.",
+                   "Features relating to time, such as time between tweets, tweet frequency or times of day.",
+                   "Features relating to the type of content being shared, such as URL links or retweets.",
+                   "Structural features of the text such as TF-IDF scores, bag of words, word embeddings and language models.",
+                   "Counts or distributions of keyword lists like medication names.",
+                   "Labelling parts of speech or grammatical features.",
+                   "Use of image data like profile pictures, or shared images."))
+  
+  feature_table %>%
+  kableExtra::kbl(.,
+                  align = "l",
+                  booktabs = T,
+                  caption = "Overview of feature categories, the number of studies that used at least one feature from each category and a description of the types of features it contains.",
+                  col.names = c("Feature type", "Number of studies", "Description")) %>%
+  kable_styling(latex_options = "striped") %>%
+  column_spec(3, "15em") %>%
+  kableExtra::footnote(., general = "TF-IDF refers to term frequency–inverse document frequency, a statistic that reflects word importance across a group of documents.",
+  threeparttable = TRUE)
+
+```
+
+Overall, textual interpretation and textual features were the most popular.
+72 papers used at least one form of textual interpretation, such as word embeddings, and 125 used at least one type of textual structure which tended to be either n-grams or term frequencies^[Word embeddings are numeric representations of textual data where words that are 'closer' together in their numeric representation are more similar in their meaning. N-grams are groups of n words that appear sequentially in a longer piece of text. E.g. the tri-grams (n=3) of "This is a sentence" would be ("This", "is", "a") and ("is", "a", "sentence").].
+It is worth noting that datasets built in languages other than English were often required to derive their own pre-processing and feature selection tools such as sentiment dictionaries or stop word lists due to there not being existing software and tools readily available in their language. 
+
+
+#### Algorithms
+
+Whilst different studies chose different approaches to modelling the data, the majority used well-recognised algorithms such as Support Vector Machines (SVM), Naïve Bayes, or tree-based algorithms. 
+Table \@ref(tab:algorithms) illustrates that SVM appears to be the most popular algorithm.
+However it was not always the primary model, and often provided a baseline measure against more complex approaches such as deep learning, or as part of an ensemble learning approach. 
+Within regression logistic regression tended to be used, which reflects the categorical nature of most of the datasets. 
+Deep learning approaches, for instance convolutional neural networks, have been relatively popular over time, but certainly do not form the majority.
+
+```{r algorithms}
+
+algorithm_table <- data.frame(
+  "Algorithm" = c("SVM", "Tree-based", "Naïve Bayes", "Regression-based", "Deep Learning", "Other", "Unknown"),
+  "Number of studies" = c("83", "67", "61", "52", "40", "54", "2")
+)
+
+
+algorithm_table %>%
+  kableExtra::kbl(.,
+                  align = "l",
+                  booktabs = T,
+                  caption = "The number of studies using each type of algorithm for at least one model.",
+                  col.names = c("Algorithm", "Number of studies")) %>%
+  kable_styling(latex_options = "striped")
+```
+
+Included in the "Other" category are bespoke algorithms written for this problem [@SahaChanDeBarbaroAbowdDeChoudhury_2017; @ZhouHuWang_2019] as well as less popular out-of-the-box options. Examples of these are a hidden markov models [@reece2017instagram], a Martingale framework [@VioulesMoulahiAzeBringay_2018], or complex decision lists [@Pedersen_2015; @ShenJiaNieFengZhangHuChuaZhu_2017].  
+
+Whilst all but one study did describe the machine learning algorithm they used to produce their final model, very few of the studies went into any detail on their hyper-parameter tuning processes which refers to the adjustments made to the values that control the model's learning process. It was also not common for studies to justify their choice of algorithm, though the choices were not inappropriate.
+
+#### Validation
+
+Understanding the effectiveness of a machine learning model allows us to evaluate how well the algorithm might generalise to unseen data. 
+Most often ten- or five-fold cross-validation was used, as well as the area under the Receiver Operator Characteristic curve. 
+
+Two issues relevant to model validation were rarely discussed or acknowledged in the papers. 
+Given that some of the datasets were designed to include a small number of controls to high numbers of cases, some standard metrics, particularly accuracy, are likely to over-represent how effective the algorithm is [@RaederFormanChawla_2012]. 
+Secondly, studies rarely clarified how they stratified their data for training, testing and validation.
+This has implications for assessing the potential for data leakage to create bias in the model's effectiveness and has been shown to be problematic in other applications of machine learning to digital epidemiology [@Bussola2021], as well as specifically creating bias in cross-validation assessment of machine learning for mental health [@tsakalidis2018can]. 
+
+### Ethics
+
+The consideration of ethical approval was assessed for a subset of 100 of the included papers, since ethical approval was only included in the rubric for reporting on studies in this review from December 2021.
+However, this still represents all studies published in 2020 and later, from which point I had anticipated that ethical considerations should be more prevalent given the cultural impacts discussed in Section \@ref(purpose), as well as previous reviews suggesting this was an area of concern. 
+
+Overall, I found that 85/100 did not discuss any ethical issues as part of their studies. 
+11/100 studies did discuss ethics thoroughly, and/or were granted ethical approval for their studies. 
+4/100 studies made reference to ethics as not being applicable to the study.
+
+Whilst some studies simply did not include consideration of ethics, there were a handful that directly contravened ethical guidance published by both the Association of Internet Researchers [@air2020ethics] and the British Psychological Society [@bps2021ethics] regarding the use of internet data for research. This was generally by publishing tweets verbatim, sometimes along with the mental health annotation, and/or by publishing usernames in the paper. Additionally some studies developed web-apps that allowed for a user timeline or tweet to be input and a prediction displayed about whether that user was experiencing the mental health disorder under consideration, though it was not always clear whether these web-apps were still operational. 
+
+### Replicability
+
+Finally, I assessed the replicability of each paper in terms of the quality of the detail provided.
+For 44/165 (27%) studies I assessed that there was enough detail for the study to be replicated. 
+For 53/165 (32%) studies it is possible they could be partly replicated but some assumptions about methodological processes (typically the pre-processing stages) would need to be made. 
+However for 68/165 (41%) studies there was not enough detail provided to attempt replication of the study due to key information being missing such as the data annotation process, the algorithm used or the feature construction. 
+In some cases it was clear that publishing formats and word limits had left limited room for description, but authors did illustrate use of external repositories on GitHub and the Open Science Framework to host more detailed methodologies or code which provides a straightforward solution to this issue. 
+
+Only 6/165 studies either provided the scripts used to analyse the data or offered to make them available on request. 
+Alternatively, a handful of authors provided pseduo-code for all stages of the model building process as part of the article. 
+Overall, this was an unexpectedly low rate of code sharing given the recent emphasis in both computer science and psychology on greater methodological transparency.
+Whilst some may not share code for ethical reasons there are alternatives such as offering to make it available on reasonable request, which were not widely used.
+
+## Discussion
+
+### Principal Results
+
+This review set out to understand the current scope, direction and trends in the prediction of mental health outcomes from Twitter data.
+165 papers published between 2013 and 2021 were included in the review. 
+I saw that the number of papers published in this area has increased year on year since 2013, and that 45% of the included studies were published in just the two year span of 2020 to 2021.
+I sought to assess the quality of the published research from both a machine learning and mental health perspective, and to make recommendations that can begin to enable the creation of meaningful outputs that support aims of mental health care provision and support.
+In the following sections I summarise the principal results and contextualise them against previous work along the themes of methodological clarity, the availability of ground truth characteristics and lastly looking towards developments that would support practical applications of these algorithms in the future. 
+
+These discussions lead to a series of recommendations for studies that aim to predict mental health outcomes from social media. 
+
+#### Methodological clarity
+
+Every paper in this review used algorithmic methods for making predictions, with a wide range of novel and exciting possibilities for future development. 
+However, the description of machine learning workflows given was often poor and a lack of clarity was a consistent theme in the results. 
+In 11% (18/165) of studies there was not an adequate description of the datasets to understand the data being used, and in 27% of studies there was no description of model pre-processing.
+The proportion of studies reporting these details has not increased over time.
+
+As well as missing out on the author's reasoning, poor reporting on modelling methods also reduced replicability, with only 27% of studies assessed as being replicable with the information provided. 
+Despite recommendations to improve the description of methodologies in place since 2017 [@wongkoplap2017review], and the increasing recognition of open science practices [@Gewin_2016], I was surprised to find that only 6/165 papers made their code available either open source or on request, where only providing code on request would be a reasonable means of mitigating ethical concerns.  
+The lack of clarity often started with a poor description of the purpose of the prediction task being attempted, which has an impact on all subsequent modelling decisions and the assessment of their suitability [@chancellor2019who; @ChoYimChoiKoLee_2019].
+It also prevents the comparison of results between papers, due to it often being impossible to tell if the same or a different predictive task is being compared. 
+
+#### Availability of ground truth characteristics 
+
+I found that the processes for determining what constituted a mental health disorder, and hence the labelling of training data, relied on circular reasoning in 104 out of the 120 primary datasets (87%). 
+This reasoning assumes that those who self-report mental health disorders online, or who use certain combinations of keywords, are truly experiencing the specified outcome. 
+It also means that groups of users who were collected for 'control' groups were unlikely to be true controls, given the relatively high prevalence of mental health disorders in the general population [@chancellor2019who; @chancellor2020methods]. 
+Similarly, keyword-based approaches were also used to derive ground truth for mental health outcome annotations in 43% of the datasets reviewed, with keywords being highly likely to be based on the language of a particular geographical area or age group, and also prone to misspellings when focussing on clinically related keywords [@YinSuliemanMalin_2019].
+Attempts to work with clinicians to develop a list of keywords for depression detection have also found low levels of agreement between clinicians [@leis2020clinical], which suggests that keyword based detection may not be a robust means of detecting genuinely depressed users.
+This lack of reliable, verified ground truth data about mental health outcomes is a fundamental threat to the quality of models for mental health inference. 
+It also aligns with concerns being raised in other fields that large online datasets can not replace the need for high quality data [@RuthsPfeffer_2014; @Schofield_2017; @YinSuliemanMalin_2019].
+
+Without validated ground truth in the majority of studies, there was not information available to characterise the dataset by key demographics such as age, gender or cultural background. 
+We know that expressions of mental health disorders are cultural, and variable across demographic groups [@DeChoudhurySharmaEekhoutClausenNielsen; @LoveysTorrezFineMoriartyCoppersmith_2018], and that those using social media do not represent the general population [@mellon2017twitter; @sloan2017tweets] (also see Chapter \@ref(cohort-profile)). 
+Lacking this information means that it is not possible to assess the impact of demographic features on model performance, and so bias may be going unnoticed.
+Research by Aguirre et al. in 2021 [@aguirre2021gender] reinforces this, after the finding that the CLPsych dataset (used in ten papers in this review) was not representative of the population demographics of depressed people, and that a classifier produced using this dataset performed most poorly for people of colour.
+
+When models are created with datasets whose ground truth cannot be verified, the importance of validating models on alternative datasets increases [@ErnalaBirnbaumCandanRizviSterlingKaneDeChoudhury_2019]. 
+Shared datasets such as the CLPsych Task 2015 [@ResnikArmstrongClaudinoNguyen_2015] and Shen et al. [@ShenJiaNieFengZhangHuChuaZhu_2017] have contributed to numerous studies by providing a dataset available to researchers [@ConwayOConnor_2016] as well as providing data to develop novel approaches with
+(though as discussed by Aguirre et al. [@aguirre2021gender] these datasets are unlikely to be population representative).
+Sharing high-quality ground truth datasets would be a beneficial next step for future developments [@ErnalaBirnbaumCandanRizviSterlingKaneDeChoudhury_2019].
+Due to the sensitivity of these data we would need to think carefully about how data sharing could be managed ethically [@williams2017towards]. 
+Further possibilities lie in the use of data safe havens for controlling sensitive data access, as has been used by workshop tasks such as CLPsych in the past few years, and in the use of synthetic data [@ShenJiaNieFengZhangHuChuaZhu_2017] which is a developing opportunity that allows a dataset with statistical properties similar to the original data without releasing the sensitive data itself. 
+The work of collating available datasets has been started by Harrigian et al. [@harrigian2020state] through the development of an open source list of datasets for predicting mental health from social media, many of which are only available on request to comply with ethical guidelines. However, as described in Section \@ref(datasets), data sharing is impeded by researchers sometimes not even describing the dataset they are using, or providing broken/out of date links to data repositories. 
+
+#### Towards practical applications
+
+This review of the mental health outcomes covered by the 165 papers included showed that there is a significant focus on depression and suicidality, but that anxiety receives much less attention, along with serious mental health disorders like PTSD, schizophrenia and psychosis.
+Whilst well-being was included in the review keywords, only one study that considered well-being outcomes was identified, which predicted happiness and self-esteem measured using validated scales [@mori2021differential]. 
+More specific keywords relating to different types of well-being may have yielded more results in this area.
+Though the majority of the focus of the datasets reviewed was on dichotomous outcomes, a future alternative is a greater focus on symptoms of disorders [@AalbersMcNallyHeerendeWitFried_2018]. 
+This has been suggested as a solution to detecting commonly co-morbid illnesses which have many connected symptoms [@Borsboom_2017], an issue that has arisen in multi-class prediction of mental health outcomes [@BentonMitchellHovy]. 
+The majority of the papers reviewed have effectively attempted to classify someone as having a mental health disorder or not, but perhaps social media may have more to offer in the tracking of online behaviours that are strong proxies for specific symptoms of mental health disorders. 
+This is perhaps best illustrated by suicidality, which is a complex concept that has been effectively modelled using machine learning [@RibeiroHuangFoxWalshLinthicum_2019].  
+
+Another area of development which would benefit from further investigation is using the time-based features of Twitter data.
+Considering that one of the main benefits of using social media data for monitoring is the high-resolution time-series information it provides, it was surprising that only 15% of studies used any time-based features in their models, and only one study used ground truth data that was measured at more than one time-point [@VioulesMoulahiAzeBringay_2018].
+By considering Twitter data as a time-series we could approach tasks like identifying optimal points for intervention, using methods such as change-point detection, or simply monitoring well-being with time.
+Having multiple instances of ground truth data for the same individual would also allow us to assess how model performance changes over time, since model drift is a particularly important concern in online settings where language and platform features continuously adapt, potentially resulting in the degradation of a trained model over time [@bechini2021addressing].
+Clinicians have so far expressed interest in using social media to measure overall symptom changes between time points, rather than as a diagnostic tool [@yoo2020designing], and so this is an area of work that requires more attention if social media data is to provide a practical use in the future. 
+Since the literature searches conducted for this review took place longitudinal and time-series work has been published more frequently in 2022 [@tsakalidis2022identifying; @bucur2022capturing]. 
+
+Throughout the literature there appears to be a consensus that more meaningful and deliberate engagement with medical professionals and patients is needed to establish a direction for future research, and explorations into Public Patient Involvement (PPI) and co-production may be effective ways of achieving these aims. 
+Crucially, we do not yet have a broad evidence base about how patients might want to use this technology or what they would not want it to be used for as part of their care [@Mikal2016]. 
+It is clear that for the work so far to develop into a technology with real-world utility further consultation on useful clinical applications and the ethical dilemmas presented by them will be needed [@ChancellorBirnbaumCaineSilenzioDeChoudhury_2019; @Ford2019b; @YoungGarett_2018], but this is still work to be done. 
+
+### Recommendations
+
+On the basis of this review I have two sets of recommendations. The first is for researchers in this field, building on the recommendations made by Chancellor and De Choudhury [@chancellor2020methods], which aim to increase the quality, replicability and transparency of mental health inference on social media:
+
+1) Explicitly state the prediction task being attempted. This should include whether the outcome predictions are at the user level or the tweet level, and what the intended use of the resulting model is.
+2) Specifically state the mental health outcome the model will be are attempting to classify and how this outcome has been defined for the purpose of labelling the training data.
+3) Explicitly state assumptions made about the mental health outcome as part of the modelling approach taken. For instance, what type of variable the outcome has been modelled as (continuous, binary etc), or what time frame it is assumed it will be detectable within.
+4) When creating new datasets, ensure that they are thoroughly described. I particularly recommend the use of *Data Sheets for Datasets* [@gebru2021datasheets] for thorough dataset reporting, which can be included as supplementary material hosted by an online repository that provides a permanent digital object identifier (DOI) such as the Open Science Framework or a pre-print server.
+5) Explain pre-processing steps in enough detail that they can be thoroughly understood and replicated. Particular attention should be paid to whether stop word lists used and the train/test/split stratification to ensure they are appropriate for the prediction task being conducted.
+6) Where possible, conduct error analysis in order to explain how and why data have been misclassified.
+7) Include a Code and Data Availability Statement, and ensure that any crucial links to materials use a DOI.
+8) Include an Ethics Statement that describes whether or not the study has received ethical approval, and the ethical considerations that researchers should be aware of when reading, replicating or applying the research. The *Ethics Sheet* for this type of research developed by Mohammad [@mohammad2022ethics] is particularly recommended.  
+
+My second set of recommendations are broader, community level aims that focus on developing ways of working that will enable these new technologies to achieve positive outcomes:
+
+1) Work towards an understanding of the needs of the public and patient populations who will be the subjects of the models being developed, and ensure that research is advancing in line with their needs.
+2) Find and agree a means by which high-quality ground truth data and trained models can be shared securely and ethically between research groups, with the purpose of improving the validation of models for predicting mental health on social media.
+3) Maximise the benefits of what social media can add to our understanding of mental health, as opposed to replacing the role of mental health professionals. In particular, the time-series nature of social media has been under-explored so far.
+
+
+### Limitations
+
+Whilst best efforts were made to include all relevant papers in this review, there is always a possibility that relevant studies were missed in the systematic search process. 
+Similarly, the search was conducted using English language search terms, and non-English studies were not reviewed.
+Previous research from Kim et al. [@kim2021systematic] showed that several studies in this area have been published by teams in China, Spain and India, which may not have been included. 
+
+This review does not go into detail about the outcomes of the studies identified, such as their results, which models appeared to be most successful or which features have been especially relevant throughout the varying approaches.
+These are investigations that could yield useful directions for improving future models and refining the process of feature selection. 
+
+## Conclusion
+
+In this review I have shown that there is a wealth of research being conducted and published on predicting mental health outcomes from Twitter, but at present the quality of study datasets and dataset descriptions is frequently poor, and the large majority of studies do not provide enough information about their analyses to understand or attempt to replicate them. 
+For this technology to move towards being used for the benefit of the populations they are intended for, the research community needs more sources of high-quality ground truth data with clinically valid labels, that can be shared ethically for benchmarking and model training.
+A strong partnership between researchers, clinicians, patients and the general public is also needed to ensure that the prediction tasks being developed are those that will be both ethically viable, as well as clinically useful.
+Given the sensitivity of this research area, researchers have an ethical responsibility to ensure the transparency of machine learning methods, in terms of the data used, the algorithms employed and precise evaluation and reporting of a model's effectiveness.
+
+If we can achieve our aim of using digital data to effectively model mental health then there is the potential for huge advancements in our understanding, monitoring and management of mental health conditions in the future. 

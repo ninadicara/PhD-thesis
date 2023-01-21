@@ -1,0 +1,806 @@
+```{r include_packages4, include = FALSE}
+# This chunk ensures that the thesisdown package is
+# installed and loaded. This thesisdown package includes
+# the template files for the thesis and also two functions
+# used for labeling and referencing
+if(!require(devtools))
+  install.packages("devtools", repos = "http://cran.rstudio.com")
+if(!require(dplyr))
+    install.packages("dplyr", repos = "http://cran.rstudio.com")
+if(!require(ggplot2))
+    install.packages("ggplot2", repos = "http://cran.rstudio.com")
+if(!require(ggplot2))
+    install.packages("bookdown", repos = "http://cran.rstudio.com")
+if(!require(thesisdown)){
+  library(devtools)
+  devtools::install_github("ismayc/thesisdown")
+  }
+library(thesisdown)
+```
+
+
+```{r setup4, include=FALSE}
+knitr::opts_chunk$set(fig.width=8, fig.height=5, 
+               echo=FALSE, 
+               warning=FALSE, message=FALSE, 
+               cache=TRUE)
+
+library(bookdown)
+library(dplyr)
+library(here)
+library(lubridate)
+library(broom)
+library(tidyr)
+library(RColorBrewer)
+library(gtsummary)
+library(ggplot2)
+library(purrr)
+library(forcats)
+library(ggpubr)
+library(scales)
+library(cowplot)
+
+# Set up a list of the LIWC features we want to use
+liwc <- c("liwc_article", "liwc_we", "liwc_posemo", "liwc_negemo", "liwc_pronoun", 
+          "liwc_you", "liwc_swear", "liwc_negate", "liwc_i")
+
+# Read in the data
+twitter <- readRDS(here("index", "data", "twitter", "2021-07-07_tweets_no_smallcell.RDS"))
+surveys <- readRDS(here("index", "data", "twitter", "2021-09-29_surveys_tidy_short.RDS"))
+
+# Add generation column
+surveys$generation <- surveys$person %>% 
+    recode_factor(!!!c(yp = "G1", m = "G0", pnr = "G0"))
+
+# Make an overall age variable that takes either the max of the two surveys, or whichever age is available from a survey.
+surveys <- surveys %>% mutate(
+  age = pmax(COVID1_age_yrs, COVID2_age_yrs, na.rm = TRUE))
+
+# Add GAD and MFQ cut offs
+surveys <- surveys %>% 
+  mutate(COVID1_depression = if_else(COVID1_mfq_cont >= 12, "Yes", "No")) %>%
+  mutate(COVID1_anxiety = if_else(COVID1_gad_cont >= 10, "Yes", "No"))
+
+```
+
+# Twitter data linkage: features of consenting participants and their data {#linked-data}
+
+## Abstract {-}
+
+**Background**
+Social media are exciting and potentially valuable data sources for health research. 
+However, to ensure that research using these data can be applicable in wider contexts, they must be linked to high quality ground truth data. 
+This chapter describes the process and outcomes of linking Twitter data in the Avon Longitudinal Study of Parents and Children, as well as investigating potential sources of bias in the data collected.
+
+**Method**
+There were 26,205 participants invited to link their Twitter data, of which 4,261 had Twitter and 654 were successfully linked after opting in.
+Their Twitter data are now continually being collected, with their tweet histories also collected up to the maximum number of historical tweets Twitter allowed.
+For the purposes of this study, I used Twitter data available up to the 31st October 2020, linked to measures of depression, anxiety and well-being taken in April to May 2020. 
+I compared the characteristics of G1 linked participants to the Twitter user group in Chapter \@ref(cohort-profile) (N=2,347) and to the depression, anxiety and well-being measures collected from the whole cohort in April to May 2020 (N=6,827). 
+I also tested whether rates of tweeting were related to the sex or generation of participants. 
+
+**Results**
+15.3% of those who used Twitter in ALSPAC had their Twitter data successfully linked. 
+Of these N=654 participants, 224 were from the G0 generation of ALSPAC and 430 were from the G1 generation. 
+Their characteristics align with the population of Twitter users described in Chapter \@ref(cohort-profile), and largely reflect the general cohort in terms of their levels of depression, anxiety and general well-being.
+In the most recent year 471 linked participants had tweeted at least once and a quarter of those tweeted less than 6 times. 
+Tweeting frequencies were not found to be statistically associated with sex or generation of participants.
+
+**Conclusion**
+The data linkage programme successfully allowed for Twitter data to be directly compared with the mental health and well-being outcomes of participants. 
+This dataset can now be linked to a wide range of outcomes that have been collected in ALSPAC and represents a realistic range of tweeting behaviours with which to train and test future models. 
+
+## Aims {-}
+This chapter gives a summary of which ALSPAC users agreed to link their data, and how they are different from
+the rest of the cohort as well as the Twitter users identified in Chapter \@ref(cohort-profile).
+This information provides useful context for Chapter \@ref(sentiment).
+
+
+\newpage
+## Introduction
+
+The development of digital phenotypes from social media as a means of understanding human health and behaviour is a relatively recent development in medicine and epidemiology, and one with exciting potential [@insel2018digital; @chancellor2020methods]. There have been multiple advances in this area over the past ten years, where social media have been used to make inferences about population and individual mental health with relative success [@russ2019data; @chancellor2020methods]. However, ease of access to large quantities of internet data does not necessarily mean the data are high quality and there are several practical and ethical challenges to meet in order to be able to make the most of internet data [@sloan2019linking; @stier2020integrating]. 
+
+Concerns about the quality of the data in the field have persisted for many years and have led to concerns about the validity of inferences that can be made from the published literature so far (for a comprehensive review see Chancellor and De Choudhury [@chancellor2020methods]). 
+For instance, social media data do not tend to include demographic information about the individuals whose data is collected, and so cannot be accurately characterised to understand demographic effects or biases [@hunter2018ethical]. 
+This is particularly important since the populations of those using social media are self-selecting, and do not tend to reflect the general population in demographics or mental health outcomes, as seen in Chapter \@ref(cohort-profile) and elsewhere in the literature [@sloan2015tweets]. 
+Similarly, the data do not usually include information about the outcome variable being inferred, unless a medical diagnosis is stated in a tweet itself. 
+Many studies use such self-disclosures of mental health conditions as positive indications of a mental health disorder, however these cannot be verified and online self-disclosure is likely to be influenced by gender and cultural norms which can then confound analyses [@DeChoudhurySharmaEekhoutClausenNielsen; @hunter2018ethical]. 
+In order to use social media to its full potential, we need it to be linked to well characterised and, ideally, longitudinal datasets that can provide the ground truth data needed to label individual characteristics and outcomes [@russ2019data]. 
+
+As well as practical considerations about the quality of the data available for research, there are ongoing concerns about the ethical collection of social media data for research, particularly with respect to informed consent, which can rarely be guaranteed in an online study [@hunter2018ethical; @chancellor2019taxonomy]. 
+It is relatively easy to amass data on a large number of individuals, who in theory have consented through the terms of service of each platform to their data being shared, but in practice social media users often do not realise this is the case [@fiesler2018participant; @proferes2017information]. 
+Alternatively, their data may be scraped from the web without consideration of the terms of service of the platform that the data is being taken from, and whether or not they consented to these. 
+
+Data linkage in cohort studies has the potential to address both these practical and ethical concerns, since it requires the explicit consent of all participants, and linkage to high quality longitudinal data that already exists about them. 
+As well as benefiting social media researchers, Al Baghal and colleagues [@al2020linking] have drawn attention to the potential of social media to reciprocally add value to these longitudinal studies, which often suffer from attrition or missing waves of data. 
+It may be possible to use the data we collect from social media to enhance the data that already exists in the studies, and as such bolster the information available in long-term studies, which is currently a strategic priority amongst large cohort study funders [@welcome2017strategy, @MedicalResearchCouncil2014]. 
+This potential has been demonstrated by linking Twitter data in a handful of studies in the United Kingdom including Understanding Society and the British Attitudes Survey [@al2021linking] as well as across the world [@mneimneh2021evaluating]. 
+Twitter tends to be a particularly popular source of data for research, partly due to the ease of accessibility to its data compared with other platforms such as Facebook and Instagram, who do not tend to allow for research access to their data, and partly due to the value of textual data that it contains.
+
+While data linkage is a promising avenue for addressing the quality of digital footprint data there are some important questions about representativeness and data asymmetries that result from these forms of linkage.
+Data asymmetry occurs when the volume of linked digital footprint data amongst a participant group varies widely across participants, and in comparison to the volume of questionnaire that it has been linked to  [@al2021linking]. 
+For instance, users may have linked their accounts but only have tweeted once, whilst others may produce thousands of tweets. 
+Much like with missing data, we would hope that this asymmetry is distributed randomly, but if it is associated with particular characteristics of the participant group then this could inadvertently cause confounding in later analyses. 
+Representativeness can also be an issue since we rely on participants to opt-in to data linkage programmes, and so may find that those who opt-in are biased towards certain characteristics, or may have particular mental health profiles that mean our data will not be population representative.
+Given these issues it is clear that whilst data linkage in longitudinal cohorts has many benefits it also has its own limitations which need to be well understood in order to use the data effectively. 
+
+This chapter aims to develop this understanding by focussing on the dataset that has been produced by linking Twitter data in the Avon Longitudinal Study of Parents and Children (ALSPAC), a multi-generational birth cohort study which aims to compile a rich databank containing information on participants’ health and social exposures and subsequent outcomes across the life course [@boyd2013cohort; @fraser2013cohort; @northstone2019avon]. 
+A large proportion of the ALSPAC young people are regular users of social media, as seen in Chapter \@ref(cohort-profile), and their age group currently makes up the biggest group of Twitter users [@twitter2021stats]. 
+The cross-generational sampling demonstrated here in ALSPAC also means that the technical framework used will be widely applicable across other cohorts including those in the Cohort and Longitudinal Studies Enhanced Research (CLOSER) consortium. 
+I will give an overview of the methodology developed for linking the data, and then go on to describe the data that has been collected through the linkage programme so far, with a focus on the quantities of Twitter data generated by the linkage programme, and the demographic and mental-health features of the linked participants compared to the general cohort. 
+Specifically, the research questions explored are (1) what are the consent rates to Twitter data linkage and how are they comparable to other data linkage studies, (2) how do the characteristics of those who linked their Twitter data compare to Twitter users in the cohort and (3) what is the extent of data asymmetry in the linked data, and is it biased by participant characteristics? 
+
+## Methods
+
+### Cohort description
+
+The Avon Longitudinal Study of Parents and Children (ALSPAC) is a birth cohort study [@boyd2013cohort; @fraser2013cohort; @northstone2019avon]. Pregnant women resident in Avon, UK with expected dates of delivery 1st April 1991 to 31st December 1992 were invited to take part in the study. 
+The initial number of pregnancies enrolled was 14,541 (for these at least one questionnaire has been returned or a “Children in Focus” clinic had been attended by 19/07/99). 
+Of these initial pregnancies, there was a total of 14,676 foetuses, resulting in 14,062 live births and 13,988 children who were alive at 1 year of age. 
+The total sample size for analyses using any data collected after the age of seven is therefore 15,454 pregnancies, resulting in 15,589 foetuses. 
+Of these 14,901 were alive at 1 year of age.
+Since ALSPAC collects data on multiple generations of participants, the generations are referred to from G0 to G2, where the G0 are the parents of the original study children, G1 the index children, and G2 the children of the G1 participants.
+
+The Twitter data linkage was conducted on a subset of the full adult ALSPAC cohort, that is the G0 mothers and their partners, and the G1 index cohort. The process for this data linkage is described in the following section, with references to the G0 cohort from this point on referring both to the mothers and their partners. 
+
+### Twitter Data Linkage Programme 
+
+#### Participant Consultation, Ethics and Informed Consent
+
+Prior to the participant consent campaign the data collection and consent processes were designed with input from a variety of stakeholders. 
+First there were interviews with leaders of the CLOSER cohorts to obtain the broadest possible overview of challenges addressed by the framework; these interviews were conducted by researchers and staff within ALSPAC. 
+Two focus groups were then held in September 2018 for the purpose of exploring participant attitudes towards sharing their social media with the cohort. 
+This included asking what they considered to be acceptable anonymisation for sharing their data, and to understand their general views about the use of social media in health and social care research. 
+These focus groups involved individuals from the G1 (N=9) and G0 (N=5) cohorts and the results from these focus groups are described in detail in Chapter \@ref(focus-groups). 
+We found that participants were generally accepting of the linkage of their social media data with their consent in order to facilitate health and social care research. 
+They felt that their trust in the cohort would make them more likely to take part, and that they would prefer the use of anonymised data derived from their social media text to be shared with researchers rather than raw data. 
+This research informed the development of the data linkage programme, and subsequent guidelines for data sharing with other researchers by the cohort team. 
+
+The study and data linkage programme itself was approved by the ALSPAC Ethics and Law Committee. 
+
+#### Invitation and Reminder Strategy
+
+Following the invitation strategy being designed by the ALSPAC team, all adult members of ALSPAC (N=26,205) were contacted to opt in to the data linkage programme via post or email. 
+Of those who were contacted, 21,944 said they had no Twitter account (8,500 of which were emailed and 13,444 of whom were contacted via post) and 4,261 were contacted who said they did use Twitter (3,662 via email and the remaining 599 via post). 
+19.6% of participants of ALSPAC who had a Twitter account provided an account name to link. 
+Of those, 654 participants had their data successfully linked to their cohort data on an ongoing basis, which represents a 78.3% success rate in linking those accounts that were provided. This inclusion flow is represented graphically in Figure \@ref(fig:inclusion-flow). 
+
+
+```{r inclusion-flow, fig.cap="The number of participants included at each stage of the process for identifying participants for linkage, as well as the reasons for not being included in the final sample.", out.width='50%', fig.align = 'center'}
+knitr::include_graphics(here("index", "figure", "linked-data", "linked-data-inclusion-flow.png"))
+```
+
+
+#### Twitter Data Harvesting and Linkage to ALSPAC
+
+For participants who agreed, the data collection and linkage were performed using a software programme named *Epicosm* built for the collection of social media data in cohort data safe-havens [@epicosm]. 
+*Epicosm* harvests Twitter data from the consenting cohort participants, and automatically calculates and stores sentiment scores for the tweets. 
+For further details on the technical functioning of *Epicosm* see Tanner et al. [@epicosm].
+Participant Twitter accounts were linked deterministically to their ALSPAC unique identifiers, with 181 users whose matches were unsuccessful due to errors in the given account names, or accounts being private.
+Historical tweets span as far back as April 2009 and data collection has been run every three days since to update with the most recent tweets. 
+The Twitter REST API which is used to collect the tweets was limited to collecting approximately 3,200 historical tweets per person. Twitter has since released an updated API which allows approved researchers to collect up to 10 million tweets per month, with no limit on user timelines. However, the data used in this chapter was collected prior to this API becoming available. 
+Data collected about tweets includes: tweet text, tweet type, public metrics such as likes and retweets, and the datetime of the tweet. 
+
+Once collected data are stored in a MongoDB database and can be linked within the ALSPAC data safe-haven.
+The data are then anonymised by the ALSPAC Data Management Team before sharing. 
+Figure \@ref(fig:linkage-diagram) gives a diagrammatic overview of this flow.
+
+```{r linkage-diagram, fig.cap="A diagram illustrating data flow between the ALSPAC participants, data safe-haven, data management team and researchers.", out.width='100%', fig.align = 'center'}
+knitr::include_graphics(here("index", "figure", "linked-data", "twitter-linkage-diagram.png"))
+```
+
+#### Data access and pre-processing
+
+In order for tweets to be shared with researchers, the ALSPAC data access requirements stipulated that data needed to be anonymised so that no information that could potentially identify participants is released. 
+As a result, the raw text of tweets are not directly available to researchers which is in line with the wishes of participants (see Chapter 3). Instead, the ALSPAC data management team pre-process textual data inside ALSPAC’s data safe-haven and can then release suitably anonymised data linked to the researchers' required outcomes in the cohort. 
+Other forms of disclosure control may be used to avoid the re-identification of individuals such as aggregation of timestamps into wider time windows, and removing potentially identifying information in the case of small cell counts.
+Small counts are five or fewer tweets in any given day or four-hour time-period, which is in line with standard statistical disclosure guidelines [@sdchandbook]. 
+
+At the time of writing four sentiment analysis algorithms were available for processing tweets with this dataset, with a view to allowing researchers in the future to submit their own pre-processing and analysis algorithms provided they provide sufficient anonymisation for the textual data. 
+This feature is currently under development. 
+The four current algorithms available were the Valance Aware Dictionary for sEntiment Reasoning (VADER) algorithm [@hutto2014vader], labMT [@dodds2011temporal], the Linguistic Inquiry Word Count (LIWC) 2015 [@pennebaker2015development], and TextBlob sentiment analysis [@loria2018textblob].
+These algorithms are further discussed in Chapter \@ref(sentiment). 
+Textual pre-processing performed by *Epicosm* involved removing urls from the text, and then removal of special characters for LIWC analysis. Special characters were not removed for VADER.
+
+The sentiment algorithms were all applied to each tweet as an individual documents, and so sentiment is measured at the tweet level.
+Sentiment scores for each tweet were then reported, as well as whether the tweet was a retweet, the date, and the four-hour window of the tweet.
+
+### Datasets and measures {#datasetsmeasures}
+
+In order to make comparisons between the linked sample, Twitter users in the cohort and the whole cohort for this study it was necessary to use several datasets collected by ALSPAC. The following four sections detail Datasets A to D which were each used for a different comparison purpose.
+
+#### Dataset A: Twitter data
+
+In the present analysis I used data collected from Twitter for the 654 linked participants up to the 31st October 2020. 
+To protect participant anonymity and reduce the risk of disclosure dates with less than five tweets were suppressed prior to being shared (this affected 0.09% of the original tweets). 
+Similarly, four-hour windows on any given day with less than five tweets were also suppressed (this affected 2.6% of the original tweets). 
+The data was collected in 2020 and goes as far back as 2009, but due to restrictions on the Twitter API the full history for all participants may not have been collected. 
+Basic information about participants such as their sex, age, ethnicity and generation was available with this dataset. 
+
+#### Dataset B: Mental health data
+
+The G0 and G1 cohorts (that is, the parent and index cohort) completed a survey between 9th April and 15th May 2020 that collected data relevant to the COVID-19 pandemic. 
+It was sent to all those for whom there was a valid email address on record. 
+A detailed data note about this resource and the questionnaire design is available [@northstone2020avon].
+The survey included mental health measures that were of interest for this study, and was chosen to link because of its relatively high response rate, proximity to the tweet harvest date, and because it is one of few points in ALSPAC where both the G0 and G1 participants completed the same mental health measures in the same context at the same time. 
+This made it easier to make full use of the data available from the linked participants from both generations.
+
+Three mental health and well-being measures were taken in this survey. 
+These were depression, measured with the Short Moods and Feelings Questionnaire (MFQ) [@messer1995development], anxiety with the General Anxiety Disorder-7 (GAD-7) questionnaire [@spitzer2006brief], and general well-being using the Warwick Edinburgh Mental Well-being Scale (WEMWBS) [@tennant2007warwick]. 
+These measures are used in this chapter as continuous scale scores.  
+As well as the mental health data from this survey, some standard attributes like age, sex and the G1's ethnicity and parental socio-economic status were also available. 
+Age was the participant's age in 2021 and sex, ethnicity and parental socio-economic status were all recorded following the birth of the G1 participants. 
+
+#### Dataset C: Linked Twitter data
+
+Dataset C, the linked Twitter data in ALSPAC, were the data from Dataset B for those participants who were linked and who responded, alongside their Twitter data from Dataset A. 
+The overlap between those linked and those who responded was N=479. 
+Due to the need to ensure anonymity of these data, the IDs for participants in this dataset were re-anonymised by the ALSPAC data management team, meaning that individuals could not be directly be compared between dataset C and any of the other datasets. 
+This means that the individuals in Dataset C are contained within Datasets A, B and D and so these datasets cannot be assumed to be independent. 
+
+#### Dataset D:  Twitter Users in ALSPAC 
+
+To understand how the demographic distributions of linked participants compare to all of the known Twitter users in ALSPAC I also compared the information from the linked dataset described above to the data discussed in Chapter \@ref(cohort-profile) regarding the demographics of the N=2,294 Twitter users in ALSPAC and their attributes. 
+These data were collected when the participants were 24 years old, approximately three years before the request for data linkage was sent. 
+For a full description of this data please see Chapter \@ref(cohort-profile). 
+
+### Analysis
+
+All analyses and data visualisations were conducted in the *R* programming language, version `r paste0(version$major, ".", version$minor)`, with RStudio v1.4 [@rlang]. 
+I primarily used the `tidyverse` (v1.3.0) package [@wickham2019tidyverse] for data manipulation, `ggplot2` (v3.3.3) [@ggplot2] for visualisation and `gtsummary` (v1.4.1) [@gtsummary] and `kable` (v1.3.4) [@kableExtra] for tabulation. 
+
+In the comparisons of results between the whole cohort and linked participants for mental health outcomes, it was not possible to consider only those who had not linked their data because IDs for linked participants go through a secondary anonymisation process. 
+As a result, mental health comparisons are made between the whole cohort (including linked participants), and just the linked participants. \clearpage
+
+## Results
+
+### Features of linked participants
+
+I first want to consider the demographic characteristics of the participants who agreed to link their data in ALSPAC such as their age and sex. I will then also consider their mental health characteristics, and compare this to the rest of the cohort at the same time-point in order to understand how representative their outcomes are.
+
+#### Demographic characteristics
+
+Sex and age of the linked participants (Dataset A) are presented in Table \@ref(tab:demographics), split by the two cohort generations whose data were linked. The linked Twitter sample is made up of approximately one third of the older generation to two thirds of the index generation. 
+
+```{r demographics}
+
+# First, a summary of everybody who agreed to link their Twitter data
+demographics_tbl <- 
+surveys %>%
+  select(person, sex, age) %>%
+  mutate(person = fct_collapse(person, "G0 (Parents)" = c("m", "pnr")),
+         person = fct_recode(person, "G1 (Index cohort)" = "yp")) %>%
+  mutate(Sex = recode_factor(sex, "M" = "Male", "F" = "Female")) %>%
+  select(Sex, age, person) %>%
+  rename(Age = age,
+         'Cohort Generation' = person) %>%
+  tbl_summary(by = 'Cohort Generation',
+              statistic = all_categorical() ~ "{p}%",
+              missing_text = "Unknown (N)") %>%
+  modify_caption("Demographic split of the index cohort with linked Twitter data")
+
+# Suppress small cell counts
+demographics_tbl$table_body[4, 6] <-"<5"
+demographics_tbl$table_body[4, 7] <-"<5"
+
+demographics_tbl %>% 
+  as_kable_extra(booktabs = TRUE) %>%
+  kable_styling(latex_options="striped")
+
+
+```
+
+Using data from the last time ALSPAC index (G1) participants were asked about their social media use (Dataset D) I can also compare the demographics of the G1 participants to those who filled in that last questionnaire, and to the ALSPAC cohort as a whole (Dataset B). This will tell us whether the demography of those consenting to linkage are similar to the available Twitter sample in ALSPAC. These results are presented in Table \@ref(tab:main-vs-twitter). 
+
+\clearpage
+
+```{r main-vs-twitter}
+
+y_n_freq_key <- c("Yes, use daily" = "Yes", 
+              "Yes, use weekly" = "Yes", 
+              "Yes, use monthly" = "Yes", 
+              "Yes, use less often" = "Yes")
+
+cohort_df <- readRDS(here::here("index", "data", "twitter", "whole_cohort_demogs.RDS")) %>%
+  select(gender, ethnicity) %>%
+  mutate(ethnicity = recode_factor(ethnicity,
+                                   "Non-white" = "Ethnic Minority Group")) %>%
+  rename(Sex = gender,
+         Ethnicity = ethnicity)
+
+age24_twitter_df <- readRDS(here("index", "data", "cohort-profile", "sm_mh_dataset.RDS")) %>%
+  drop_na("SM_hasSM_YPD", "SM_anySMfreq_YPD", "self_harm_YPD", "suic_YPD", 
+          "ed_YPD", "SM_FB_YPD", "SM_Insta_YPD", "SM_Snapchat_YPD", 
+          "SM_Twitter_YPD", "SM_YouTube_YPD") %>%
+  filter(SM_hasSM_YPD != "Don't know") %>%
+  mutate(twitter = recode_factor(as.factor(SM_Twitter_YPD), !!!y_n_freq_key),
+         sex = as.factor(sex),
+         ethnicity = recode_factor(ethnicity,
+                                   "Non-white" = "Ethnic Minority Group")) %>%
+  filter(twitter == "Yes") %>%
+  select(sex, ethnicity) %>%
+  rename(Sex = sex,
+         Ethnicity = ethnicity)
+
+tbl_whole_cohort <- cohort_df %>% 
+  tbl_summary(statistic = all_categorical() ~ "{p}%",
+              missing_text = "Unknown (N)")
+
+tbl_age24_twitter <- age24_twitter_df %>% 
+  tbl_summary(statistic = all_categorical() ~ "{p}%",
+              missing_text = "Unknown (N)")
+
+tbl_linked_twitter <- surveys %>% 
+  filter(person == "yp") %>%
+  mutate(Sex = recode_factor(sex, "M" = "Male", "F" = "Female")) %>%
+  rename(Ethnicity = ethnicity_yp) %>%
+  select(Sex, Ethnicity) %>%
+  tbl_summary(statistic = all_categorical() ~ "{p}%",
+              missing_text = "Unknown (N)")
+
+# Suppress small cell counts
+tbl_linked_twitter$table_body[4, 6] <- "<5"
+
+# Combine the summary tables into one
+tbl_merge(
+    tbls = list(tbl_whole_cohort, tbl_age24_twitter, tbl_linked_twitter),
+    tab_spanner = c("Full G1 Cohort", "G1 Twitter Users", "G1 Linked Participants")
+  ) %>%
+  modify_header(label = "Characteristic") %>%
+  modify_footnote(update = everything() ~ NA) %>%
+  modify_caption("For the index cohort (G1) only: demographic characteristics of the full index cohort, those who said that they had a Twitter account at age 24, and those who agreed to link their Twitter data.") %>%
+  as_kable_extra(booktabs = TRUE) %>%
+  kable_styling(latex_options="striped")
+
+rm(tbl_whole_cohort, tbl_age24_twitter, tbl_linked_twitter, cohort_df, age24_twitter_df, y_n_freq_key)
+```
+
+#### Mental health characteristics
+
+Next, I will consider the depression, well-being and anxiety outcomes of the linked and non-linked participants in April 2020. As noted in Section \@ref(datasetsmeasures), it was not possible to obtain the complement of the full cohort dataset and the linked participants, and so the full cohort outcomes (Dataset B) are compared with the linked participant outcomes (Dataset C). The comparisons between these groups is made graphically in Figure \@ref(fig:mh-comparison-plots), where the distributions of the continuous scale scores for anxiety, depression and mental well-being are displayed as box plots and density graphs.
+Given that there are differences in rates of mental health outcomes between men and women (as seen for the G1 cohort in Chapter \@ref(cohort-profile)), the equivalent graphs for only female and male participants are given respectively in Supplementary Figures \@ref(fig:mh-comparison-plots-fem) and \@ref(fig:mh-comparison-plots-men). 
+These figures show that in men a similar pattern emerges in that anxiety and depression are slightly higher in the linked cohort, and in men well-being in particular is a little lower. 
+However, in women anxiety and well-being are approximately the same between both the linked and general cohort, but depression is higher in linked participants. 
+Overall, these results suggest that the linked cohort are largely comparable to the overall cohort. 
+
+```{r setup-covid-mh-data}
+library(foreign)
+
+varbs <- c("kz021", "covid1m_mult_mum", "covid1p_mult_dad",
+  "covid1m_0002",
+  "covid1m_4065",
+  "covid1m_4080",
+  "covid1m_4120",
+  "covid1p_0002",
+  "covid1p_4065",
+  "covid1p_4080",
+  "covid1p_4120",
+  "covid1yp_0002",
+  "covid1yp_4065",
+  "covid1yp_4080",
+  "covid1yp_4120",
+  "covid2m_4065",
+  "covid2m_4080",
+  "covid2m_4120",
+  "covid2p_4065",
+  "covid2p_4080",
+  "covid2p_4120",
+  "covid2yp_4065",
+  "covid2yp_4080",
+  "covid2yp_4120"
+)
+
+covid_data <- read.spss(here::here("index", "data", "twitter", "alspac-covid-data.sav"),
+                        to.data.frame = TRUE, use.value.labels = FALSE) %>%
+  select(aln, qlet, all_of(varbs))
+
+covid_data_yp <- covid_data %>% select(aln, qlet, kz021, contains("mult"), contains("yp")) 
+covid_data_m <- covid_data %>% select(aln, qlet, kz021, contains("mult"), contains("m")) 
+covid_data_p <- covid_data %>% select(aln, qlet, kz021, contains("mult"), contains("1p"), contains("2p")) 
+
+# Make the names more sensible. 
+
+rename_varbs <- function(dataset, change_cols) {
+  # This function takes a dataset and the columns to be changed. 
+  # It finds the columns to be changed in the survey_meta file, and replaces the name with the 
+  # name in the column "new varb name". 
+  # Once this is complete it returns the dataframe. 
+  
+  old_names <- survey_meta[survey_meta$original_varb_name %in% change_cols,]$original_varb_name
+  new_names <- survey_meta[survey_meta$original_varb_name %in% change_cols,]$new_varb_name
+  
+  dataset %>% rename_with(~ all_of(new_names)[which(all_of(old_names) == .x)], .cols = old_names)
+}
+
+survey_meta <- read.csv(here("index", "data", "twitter", "variable_meta.csv"))
+
+covid_data_yp <- rename_varbs(covid_data_yp, colnames(covid_data_yp))
+covid_data_m <- rename_varbs(covid_data_m, colnames(covid_data_m))
+covid_data_p <- rename_varbs(covid_data_p, colnames(covid_data_p))
+
+covid_data_yp$person <- "yp"
+covid_data_m$person <- "m"
+covid_data_p$person <- "p"
+
+rm(covid_data, survey_meta, rename_varbs)
+
+covid_data <- rbind(covid_data_yp, covid_data_m, covid_data_p)
+
+rm(covid_data_yp, covid_data_m, covid_data_p)
+```
+
+
+```{r covid-mh-comparisons}
+
+# To plot them we need to combine the datasets of all the results, and just the linked people. 
+covid_data$group <- "all"
+surveys$group <- "linked"
+
+cols <- intersect(colnames(surveys), colnames(covid_data))
+
+plot_data <- rbind(covid_data[, cols], surveys[, cols]) %>%
+  mutate(sex = as.factor(sex),
+         sex = recode_factor(sex, '1' = "Male", '2' = "Female", "F" = "Female", "M" = "Male"))
+# NB To see how many people are in the 'whole cohort' graph split by generation then this can be run: 
+# plot_data %>% filter(group=="all") %>% drop_na() %>% count(person) 
+
+```
+
+
+```{r mh-comparison-plots, dpi=330, fig.cap="A comparison of the distributions of participant scores for anxiety, depression and general well-being between those who agreed to link their Twitter data, and the whole cohort (including linked respondents). The box plot is presenting the median and interquartile ranges.", out.width="100%"} 
+
+# Define functions for making the boxplots and density plots
+box_plot <- function(variable) {
+  # Make the boxplot
+  plot_data %>% 
+  select(variable, group, person) %>%
+  mutate(group = recode_factor(group, "all" = "All respondents (N=6827)", "linked" = "Linked respondents (N=479)")) %>%
+  pivot_longer(cols = contains("cont"), names_to = "scale_name", values_to = "scale_score") %>%
+  mutate(scale_name = case_when(scale_name == 'COVID1_mfq_cont' ~ 'Depression',
+                           scale_name == 'COVID1_gad_cont' ~ 'Anxiety',
+                           scale_name == 'COVID1_wemwbs_cont' ~ 'General Well-being')) %>%
+  ggplot(aes(y = scale_score, fill = group)) + 
+  geom_boxplot() +
+  theme_light() +
+  facet_wrap(vars(scale_name), scales = "free") +
+  ylab("") +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    legend.position="none") +
+  scale_fill_discrete(name = "Group") 
+}
+
+density_plot <- function(variable) {
+  
+  # Make the density plot
+  plot_data %>% 
+  select(variable, group, person) %>%
+  mutate(group = recode_factor(group, "all" = "All respondents (N=6,827)", "linked" = "Linked respondents (N=479)")) %>%
+  pivot_longer(cols = contains("cont"), names_to = "scale_name", values_to = "scale_score") %>%
+  mutate(scale_name = case_when(scale_name == 'COVID1_mfq_cont' ~ 'Depression',
+                           scale_name == 'COVID1_gad_cont' ~ 'Anxiety',
+                           scale_name == 'COVID1_wemwbs_cont' ~ 'General Well-being')) %>%
+  ggplot(aes(x = scale_score, fill = group)) + 
+  geom_density(alpha=0.4) +
+  theme_light() +
+  facet_wrap(vars(scale_name), scales = "free", nrow=3) +
+  xlab("\nScale Score") +
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    legend.position="none") +
+  scale_fill_discrete(name = "Group") + 
+  ylab("")
+}
+  
+box_and_density <- function(boxplot, densityplot) {
+  # Combine them in a ggarrange function, and return.
+  plot_grid(boxplot, densityplot,
+           align = 'vh', 
+           nrow = 2, ncol = 1, 
+           rel_heights = c(4,2)) 
+}
+
+# Get each of the box/density plots
+anx_plots <- box_and_density(box_plot("COVID1_gad_cont"), density_plot("COVID1_gad_cont"))
+dep_plots <- box_and_density(box_plot("COVID1_mfq_cont"), density_plot("COVID1_mfq_cont"))
+wb_plots <- box_and_density(box_plot("COVID1_wemwbs_cont"), density_plot("COVID1_wemwbs_cont"))
+
+# Combine them
+allplts <- plot_grid(
+          dep_plots + theme(legend.position="none"),
+          anx_plots + theme(legend.position="none"),
+          wb_plots + theme(legend.position="none"),
+          align = 'h', nrow = 1)
+
+# Get a single legend
+legend <- get_legend(
+  box_plot("COVID1_gad_cont") + 
+    guides(color = guide_legend(nrow = 1)) +
+    theme(legend.position = "bottom")
+)
+
+# Add legend to the combined plot
+plot_grid(allplts, legend, ncol = 1, rel_heights = c(1, .1))
+
+
+rm(anx_plots, dep_plots, wb_plots)
+```
+
+
+### Features of linked Twitter data
+
+Overall 654 participants were successfully linked. In total, their Twitter data ranges from April 2009 up to 31st October 2020, with a total of `r nrow(twitter)` tweets (excluding the 447 tweets with no datetime data). 
+Due to the disclosure control rule of there needing to be five tweets minimum per time window and per day in order for the data to be released, data were suppressed for 447 out of 496,827 tweets in total, and for the four-hour time windows of 12,802 tweets. 
+The rates of datetime information suppression is highly skewed towards earlier years of data collection where either fewer participants were tweeting each day, or less participants' data had been collected that far back.
+Using the resulting data I now describe the overall volumes of tweets by type, and then the frequencies of tweeting by participants. 
+
+#### Tweet types
+
+Twitter can be used in different ways, with one of the primary choices being whether a tweet is authored by the account holder (a *tweet*) or the re-sharing of an already published tweet (a *retweet*). 
+Figure \@ref(fig:tweet-volume-time) shows the monthly counts of tweets and retweets collected from all of the participants whose data have been linked. There is an increase in tweet volume over time which could be caused by the data collection software being limited to 3,200 tweets per person, so that the full history was only collected for some people, and/or by a slow increase in the popularity of Twitter as a social networking site. There is also a very clear spike in tweet volume at the beginning of the COVID-19 pandemic. 
+
+```{r tweet-volume-time, dpi=330, fig.cap="Monthly counts of original tweets and retweets collected for all participants. The original tweet and retweet values are layered to fill to the total number of tweets for each month.", fig.width=8, fig.height=5, out.width="100%"}
+
+twitter %>%
+  mutate(retweet = recode_factor(retweet, "True" = "Retweets", "False" = "Original Tweets")) %>%
+  count(floor_date(date, unit="months"), retweet) %>%
+  ungroup() %>%
+  rename( "Month" = "floor_date(date, unit = \"months\")") %>%
+  ggplot(aes(x = Month, y = n, fill = retweet)) + 
+  geom_area(method = "loess") + 
+  theme_light() +
+  xlab("") +
+  ylab("Monthly count\n") + 
+  # Increase tick marks
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") + 
+  labs(fill = "Tweet Type")
+```
+
+```{r tweet-types}
+# Used for the text below
+
+type_counts <- twitter %>% 
+  group_by(retweet) %>% 
+  summarise(n=n()) %>% 
+  mutate(pct = round((n / sum(n)) * 100, 1))
+
+```
+
+```{r retweets-props, dpi=330, fig.cap="Proportions of total tweets that were retweets, split by participants who are in each of the quantiles of total number of tweets. The dashed grey line indicates the median proportion per quartile.", fig.width = 9, fig.height = 4, out.width="100%"}
+
+# Number of tweets per person overall
+counts_pp <- twitter %>%
+  count(pid2934_1) %>%
+  rename(tweet_count = n)
+
+# Get the quantile cut offs
+count_quantiles <- quantile(counts_pp$tweet_count)
+
+# Set a column with the quantile each person belongs to
+counts_pp <- counts_pp %>%
+  mutate(quantiles = case_when(
+    # 0 - 25th quantile
+    tweet_count <= count_quantiles[[2]] ~ paste0("1 to ", count_quantiles[[2]], " tweets (0-25%)"),
+    # 75-100th quantile
+    tweet_count > count_quantiles[[4]] ~ paste0(count_quantiles[[4]], " to ", count_quantiles[[5]], " tweets (75-100%)"),
+    # 25th - 50th quantile
+    (tweet_count > count_quantiles[[2]]) & (tweet_count <= count_quantiles[[3]]) ~ paste0(count_quantiles[[2]], " to ", count_quantiles[[3]], " tweets (25-50%)"),
+    # 50th - 75h quantile
+    (tweet_count > count_quantiles[[3]]) & (tweet_count <= count_quantiles[[4]]) ~ paste0(count_quantiles[[3]], " to ", count_quantiles[[4]], " tweets (50-75%)"),
+    ))
+
+# Re order the factors for this 
+counts_pp <- counts_pp %>%
+  mutate(quantiles = as.factor(quantiles)) %>%
+  mutate(quantiles = fct_relevel(quantiles, "1 to 46.5 tweets (0-25%)", "46.5 to 285 tweets (25-50%)", "285 to 1293 tweets (50-75%)", "1293 to 8274 tweets (75-100%)"))
+
+# Now, add this to the information about retweet proportions
+twitter %>% 
+  count(pid2934_1, retweet) %>% 
+  ungroup() %>%
+  group_by(pid2934_1) %>%
+  # Get the relative percentage per person per year
+  mutate( prop = n / sum(n) ) %>%
+  ungroup() %>%
+  # Add the total count pp as a column
+  left_join(., counts_pp) %>%
+  # Make a mean per group
+  group_by(quantiles) %>%
+  mutate(quant_mean = median(prop)) %>%
+  ungroup() %>%
+  filter(retweet == "True") %>% 
+  # Now plot 
+  ggplot(aes(x=prop)) +
+  geom_histogram(fill = "#00BFC4", bins = 8) +
+  geom_vline(aes(xintercept=quant_mean), linetype = "dashed", colour = "grey") +
+  facet_grid(. ~ quantiles) + 
+  ylab("Number of participants\n") +
+  xlab("\nProportion of retweets, by quantiles of total number of tweets") + 
+  theme_light() 
+  
+
+```
+
+Over the whole sample the percentages of original tweets and retweets were `r type_counts %>% filter(retweet == "False") %>% pull()`% and `r type_counts %>% filter(retweet == "True") %>% pull()`% respectively. 
+Of course, not all users will be retweeting at the same rate. 
+To investigate the changes in re/tweet proportions Figure \@ref(fig:retweets-props) shows proportions of retweets, split into the four quantiles of overall tweet volume. 
+The overall pattern shows that the distribution of the number of retweets people send becomes more skewed towards fewer retweets as their overall tweet volume gets higher, although the overall median proportion of retweets remains roughly the same.
+
+#### Frequencies
+
+Since participants tweets can only be collected up to the limits of the Twitter API I will concentrate the description of tweeting frequency to the most recent year of data. This is 31st October 2019 to the 31st October 2020.
+
+```{r weekly-tweets-setup} 
+# Here we are working out each persons weekly tweet frequency for the whole time they have been tweeting, and also just
+# for the past year from 31st Oct 2019 to the 31st Oct 2020. 
+
+# Make some summary info about the tweets per person
+pp_tweets <- twitter %>% 
+  group_by(pid2934_1) %>%
+  summarise(max_all = max(date),
+            min_all = min(date), 
+            count_all = n()) %>%
+  ungroup() %>%
+  mutate(len_active = as.numeric(max_all-min_all, units="weeks") + 1, # allow active for 1 week to be 1
+         weekly_freq = count_all/len_active)
+
+# Also get their frequency in the past year (so 31-10-2019 to 31-10-2020)
+pp_tweets_1yr <- twitter %>%
+  filter(date >= dmy("31-10-2019")) %>%
+  group_by(pid2934_1) %>%
+  summarise(max_1yr = max(date),
+            min_1yr = min(date), 
+            count_1yr = n()) %>%
+  ungroup() %>%
+  mutate(weekly_freq_1yr = count_1yr/52) # This time we know it's over a year so divide by 52 weeks
+
+# Make a composite dataset
+tweets_weekly <- pp_tweets %>% left_join(., 
+                                         pp_tweets_1yr %>% select(pid2934_1, count_1yr, weekly_freq_1yr), by = "pid2934_1")
+
+# Remove un-needed data
+rm(pp_tweets, pp_tweets_1yr)
+```
+
+Over this most recent year of data `r length(na.omit(tweets_weekly$count_1yr))` participants had used Twitter at least once, with the minimum number of tweets per person being `r min(tweets_weekly$count_1yr, na.rm = TRUE)`, and the maximum being `r max(tweets_weekly$count_1yr, na.rm = TRUE)`, with an overall mean of `r round(mean(tweets_weekly$count_1yr, na.rm = TRUE), 1)` tweets over the year. 
+Here 'tweets' includes both original authored tweets and re-tweets. 
+This gives an average frequency of `r round(mean(tweets_weekly$weekly_freq_1yr, na.rm=TRUE), 1)` tweets per week. 
+Of those who tweeted in the past year, the first quantile of participants tweeted up to 6 times, the second quantile up to 32 times, the third quantile up to 132 times and the fourth quantile up to 8274 times.
+A histogram of tweets per person is given in Figure \@ref(fig:tweets-pp). 
+
+
+```{r tweets-pp, dpi=330, fig.cap="Histogram of the number of tweets per person in the most recent year of data (31st Oct 2019 to 31st Oct 2020), with tweets per person transformed with the binary logarithm.", fig.width = 8, fig.height = 3, out.width="100%"}
+
+tweets_weekly %>% 
+  mutate(count_1yr = count_1yr) %>%
+  ggplot(aes(x=count_1yr)) + 
+  #xlim(NA, 4000) +
+  geom_histogram(fill = "#00BFC4", bins = 15) +
+  xlab("Number of tweets per person (log scale)") + 
+  ylab("Participant count") +
+  scale_x_continuous(trans='log2') +
+  theme_light()
+
+```
+
+Considering this most recent year of data, I also looked at whether frequencies vary by sex or generation of the participants. Table \@ref(tab:freq-table) presents a variety of descriptive statistics of the weekly frequencies of tweets by both of these characteristics, as well as the results of the Wilcoxon rank sum test to test the null hypothesis that both groups have the same underlying distribution. The Wilcoxon rank sum test does not assume normality of the data, which is appropriate in this case given the skew observed in Figure \@ref(fig:tweets-pp).   
+
+```{r freq-table}
+
+# Get a table with average tweet frequency by the variable of choice (Sex, generation etc)
+map(
+  c("sex", "generation" ),
+  ~ tweets_weekly %>% 
+  drop_na() %>%
+  left_join(., surveys, by = c("pid2934_1" = "pid2934")) %>%
+  select(weekly_freq_1yr, .x) %>%
+  rename("Weekly Tweet Frequency" = weekly_freq_1yr) %>%
+  tbl_summary(by = .x,
+    type = all_continuous() ~ "continuous2",
+    statistic = all_continuous() ~ c("{mean} ({sd})", 
+                                     "{median} ({p25}, {p75})",
+                                     "{min}, {max}"),
+    missing = "no") %>%
+    add_p()
+    ) %>%
+  # Merge the tables together
+  tbl_merge(., tab_spanner = c("Sex", "Generation")) %>%
+  modify_caption(caption = "Weekly tweet frequency for the most recent year of data, split by sex and generation.") %>%
+  as_kable_extra(booktabs = TRUE) %>%
+    kable_styling(latex_options=c("scale_down", "striped"))
+
+
+
+```
+
+In terms of daily trends, of the tweets for which the time window was available, `r 22	+ 21 + 25`% of tweets were sent between 8AM and 8PM, 22% sent between 8PM and midnight, and then 9% sent between midnight and 8AM. 
+
+```{r tweets-time-of-day, eval = FALSE}
+
+# Use to check what's written in the sentence above
+twitter %>%
+  count(time_4hrs) %>%
+  filter(time_4hrs != "small_cell") %>%
+  mutate( prop = round(n / sum(n), 2) )
+
+```
+
+
+
+
+\clearpage
+## Discussion
+
+In this chapter I have given an overview of the data that have been collected through ALSPAC’s Twitter data linkage programme, and used a dataset linked to a recent mental health survey to describe the distribution of different attributes in the dataset and examine potential biases or asymmetries.
+
+### Consent and successful linkage rates
+
+Of the ALSPAC population that said they used Twitter (N=4,261), 19.6% agreed to linkage. 
+However, due to 181 unsuccessful matches, 15.3% were ultimately linked. 
+There was a large difference in the number of Twitter users between participants invited by post versus by email, where 30% of the emailed participants used Twitter, but only 4% of the participants invited by post did. 
+The rate of successful linkage is slightly lower than that obtained by Al Baghal et al. [@al2020linking] in their linkage experiments with panel surveys, which varied between 27% and 37%. 
+However, this may be because the age group for this study included those aged 56 to 62 years old, rather than mainly young people who are more likely to be Twitter users [@twitter2021stats], and that it included postal surveys rather than being only web-based.
+
+There is evidence from previous studies that survey mode can have an impact on a participant’s likelihood to consent to Twitter data linkage [@al2020linking; @mneimneh2021evaluating], where higher consent rates for data linkage were obtained when participants were invited by an interviewer in person. 
+This evidence is also consistent across other types of data linkage requests in longitudinal studies, and it is thought that this finding is because there are lower levels of understanding of requests made online compared with being able to converse with a study representative [@jackle2021understanding; @jackle2021improving]. The level of understanding that participants have of a request is then associated with their likelihood to consent [@jackle2021improving]. 
+When taken alongside the strong messages from ALSPAC participants in Chapter \@ref(focus-groups) around the importance of personal privacy and trust when it comes to their social media data, it is reasonable to hypothesise that rapport with an interviewer or clinic staff may have increased the level of trust in the safe use of participant data, and therefore have increased the opt-in rate. 
+This is a step that could be implemented at a later date or considered for future data linkage projects with digital footprints.
+
+
+### Characteristics of the linked participants
+
+Knowing that the linked participants represent 15% of Twitter users in ALSPAC, I then investigated whether there was a bias in the characteristics of those who did choose to opt-in versus those Twitter users who did not. I considered both demographic and mental health characteristics against the ALSPAC cohort, and also demographic characteristics against the group of Twitter users in ALSPAC. Differences between Twitter users in ALSPAC and the general population are discussed in more detail in Chapter \@ref(cohort-profile). 
+When considering representativeness in ALSPAC, it is important to note that the characteristics of the index population (G1) were designed to be population representative, but their parents (G0) were not.
+Of those who were linked in the G1 cohort, the sex distribution compares relatively well to the overall ALSPAC G1 population, as well as to the Twitter population for this cohort described in ALSPAC in Chapter \@ref(cohort-profile). 
+The linked sample does reflect the general pattern of attrition in ALSPAC, in that women are more likely to remain in the sample over time [@northstone2019avon], and so whilst the sex distribution reflects overall ALSPAC patterns, they are not necessarily population representative (Chapter \@ref(cohort-profile)). 
+I did also see that for the G0 cohort of parents, there was a higher proportion of men to women than in the G1 cohort.
+
+Overall these patterns concur with previous research that found there was not a statistical association between opting-in to data linkage and demographic features [@thornby2017collecting; @jackle2021understanding]. 
+However, there is evidence from the literature that level of education is associated with opting-in, which is thought to be linked to the participants level of understanding of what they are being asked to do [@thornby2017collecting]. 
+
+In terms of mental health and well-being, Figure \@ref(fig:mh-comparison-plots) shows that linked participants are fairly well represented in terms of their anxiety, depression and well-being distributions against the full cohort, with just slightly higher proportions of participants with higher anxiety and depression in the linked sample than the cohort overall, but very similar rates of general well-being. 
+This follows what we might expect from Chapter \@ref(cohort-profile), where we saw that Twitter users did exhibit slightly higher rates of depression than the cohort overall, but had very similar rates of general well-being.
+As such, the differences seen in Figure \@ref(fig:mh-comparison-plots) between the distributions for all participants and linked participants are likely to be attributable to linked participants being Twitter users, rather than to opting-in to the data linkage programme. 
+This is further supported by evidence from Mneimneh et al. [@mneimneh2021evaluating] who found that the presence of mood or anxiety disorders or suicidal ideation had no impact on opting-in to Twitter data linkage across three studies. 
+
+### Characteristics of the linked data
+
+Collecting Twitter data from a population or general survey sample means that we should not expect all participants to produce the same volumes of data, unlike in a study where we could select a sample from the Twitter API based on their tweet frequency. 
+In this study, of those with linked data two thirds had tweeted in the past year. 
+Tweet frequencies of those linked show that a quarter of this sample have sent 6 tweets or fewer in the past year of data, with the overall distribution of tweeting frequencies highly skewed towards fewer tweets per person. 
+This, as seen in Table \@ref(tab:freq-table), can impact summary statistics like the average number of tweets per person. 
+When considering the average tweet frequency by generation the older generation (G0) appear to tweet more frequently if using the mean, but the younger generation (G1) tweet more frequently when using the median. 
+This is likely due to a small number of participants tweeting at very high rates as seen from the distribution in Figure \@ref(fig:tweets-pp) which skews the mean.
+
+Whilst the data is asymmetrical as expected [@al2021linking], I have also found that variations in tweet frequency are not statistically associated with the sex or generation of the participants (Table \@ref(tab:freq-table)). 
+That said, women do appear to post less than men in terms of summary statistics, and previous studies have found that women post less often too [@al2021linking]. Other research has also found that those with higher level qualifications post more regularly, and those without post less [@al2021linking], which is something that could be tested with the linked dataset at a later date. 
+Other potentially influential patterns include that retweets are more frequent in those who tweet less often as seen in Figure \@ref(fig:retweets-props).
+
+Overall the presence of data asymmetry is expected, and indeed is the purpose of linking data in a population representative cohort. 
+By having a broad range of tweeting patterns we can attempt to replicate a more realistic experimental setting for training algorithms using Twitter data, as opposed to only training with an ideal dataset that does not transfer effectively to 'real world' use. 
+There are suggestions that there may be minor demographic differences in tweet frequency, which should be considered in the use of the dataset, especially since those who are less well represented are those who are already more likely to be harmed by other forms of structural bias. 
+
+### Strengths and limitations
+
+There are some limitations to this investigation. Firstly, due to the dual anonymisation process of participant IDs the linked Twitter data cannot be compared directly to other research datasets from the cohort. 
+This limited my ability to statistically test differences between samples since the samples cannot meet assumptions of independence. 
+The data collection was also limited by the Twitter API itself, which did not guarantee that every Twitter user's full history would be collected.
+Following on from this, the most recent (and therefore most likely to be complete if the full history was not collected) year of data includes the beginning of the COVID-19 pandemic which, as can be seen in Figure \@ref(fig:tweet-volume-time), aligns with a huge increase in tweet volume that is likely to have biased the tweet frequency figures calculated. 
+Lastly, since only the anonymised sentiment data was available for analysis it was not possible to conduct any detail analysis of patterns in the textual data collected.
+
+
+In terms of strengths, the data linkage project described presents a number of advancements to the collection and sharing of research data from digital footprints that may allow for new advances in this space. 
+Knowing who does and does not use Twitter, and who consented to data linkage, means that we can accurately understand bias generated from differential opt-in patterns and Twitter use.
+Researchers can now request for Twitter data to be linked to any of the huge number of measures available in ALSPAC over all time, which is a significant improvement in the availability of ground truth information available for model training. 
+Up until now much of the field of digital footprint research has relied on single studies either inferring data labels from Twitter information or attempting to gather ground truth labels directly from participants at a single time point (this will be discussed further in Chapter \@ref(scoping-review)). 
+Secondly, the data being linked in a population cohort gives researchers an opportunity to understand how algorithms might behave on data that looks more like what might be found naturally on Twitter. 
+That is, a wide range of tweeting patterns, a mix of demographics and also two different age ranges to test with. 
+Lastly, the data being managed by the cohorts data management team allows for digital footprint data to be managed ethically and securely, which is one of the primary concerns about the use and sharing of such data, especially from social media [@sloan2019linking]. 
+
+## Conclusion
+
+The Twitter data linkage programme that has been described and presented in this chapter allows for Twitter data from a group of participants to be studied alongside their longitudinal data collected by the ALSPAC cohort study. Whilst there are some asymmetries in the data, these are in line with what would be expected based on the literature, and reflect a realistic complement of Twitter users. 
+The knowledge of the characteristics of the Twitter data and the participants it belongs to can be used in future studies to train and test new or existing models for classifying health conditions on Twitter. 

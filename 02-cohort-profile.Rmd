@@ -1,0 +1,677 @@
+```{r include_packages2, include = FALSE}
+# This chunk ensures that the thesisdown package is
+# installed and loaded. This thesisdown package includes
+# the template files for the thesis and also two functions
+# used for labeling and referencing
+if(!require(devtools))
+  install.packages("devtools", repos = "http://cran.rstudio.com")
+if(!require(dplyr))
+    install.packages("dplyr", repos = "http://cran.rstudio.com")
+if(!require(ggplot2))
+    install.packages("ggplot2", repos = "http://cran.rstudio.com")
+if(!require(ggplot2))
+    install.packages("bookdown", repos = "http://cran.rstudio.com")
+if(!require(thesisdown)){
+  library(devtools)
+  devtools::install_github("ismayc/thesisdown")
+  }
+library(thesisdown)
+```
+
+
+```{r setup2, include=FALSE}
+
+# Set markdown defaults
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE, cache = TRUE)
+
+# Load necessary libraries
+library(knitr)
+library(tidyr)        # Useful formatting functions
+library(bookdown)     # File formatting
+library(flextable)    # Table output format for Word
+library(here)         # Relational file paths within packages
+library(tidyverse)    # Tidyverse data tidying
+library(ggplot2)      # Plotting
+library(janitor)      # Rows to names (after transposing)
+library(rlang)        # Translation between base R and tidyverse 
+library(conflicted)   # For resolving package conflicts
+library(magrittr)     # For %<>%
+library(gtsummary)    # Tidyverse summary tables
+library(broom)        # For converting summary stats into tibbles using tidy()
+library(scales)       # For using percentage scales on the plot axes
+library(ggpubr)       # Some nice ggplot functions
+library(kableExtra)
+
+# Declare conflict preferences
+conflict_prefer("summarise", "dplyr")
+conflict_prefer("filter", "dplyr")
+conflict_prefer("mutate", "dplyr")
+conflict_prefer("count", "dplyr")
+conflict_prefer("tidy", "broom")
+
+# Load functions from utility script
+source(here::here("index", "data", "cohort-profile", "utility_functions.R"))
+
+# Read in the data
+df <- readRDS(here::here("index", "data", "cohort-profile", "sm_mh_dataset.RDS"))
+
+# Declare some key lists for later 
+freq_key <- c("Yes, use daily" = "Daily", 
+              "Yes, use weekly" = "Less than daily", 
+              "Yes, use monthly" = "Less than daily", 
+              "Yes, use less often" = "Less than daily")
+y_n_freq_key <- c("Yes, use daily" = "Yes", 
+              "Yes, use weekly" = "Yes", 
+              "Yes, use monthly" = "Yes", 
+              "Yes, use less often" = "Yes")
+sm_key <- c("FB_YPD" = "Facebook", 
+            "Twitter_YPD" = "Twitter",
+            "Insta_YPD" = "Instagram", 
+            "Snapchat_YPD" = "Snapchat", 
+            "Whatsapp_YPD" = "WhatsApp", 
+            "Tumblr_YPD" = "Tumblr", 
+            "YouTube_YPD" = "YouTube")
+
+# Set up the two sub-dataframes
+main_df <- df %>% 
+  drop_na("SM_hasSM_YPD", "SM_anySMfreq_YPD", "self_harm_YPD", "suic_YPD", 
+          "ed_YPD", "SM_FB_YPD", "SM_Insta_YPD", "SM_Snapchat_YPD", 
+          "SM_Twitter_YPD", "SM_YouTube_YPD") %>%
+  filter(SM_hasSM_YPD != "Don't know")
+
+sub_df <- main_df %>% 
+  drop_na("MFQ_YPC", "WEMWS_YPC",  "MIL_pres_YPC", "MIL_search_YPC", 
+          "LOT_YPC", "subj_happ_YPC", "GQ6_YPC", "SWL_YPC", 
+          "BPN_YPC_autonomy", "BPN_YPC_relatedness", "BPN_YPC_competence")
+```
+
+# The mental health and well-being profile of social media users {#cohort-profile}
+
+
+> This chapter is adapted from Di Cara NH, Winstone L, Sloan LS, Davis OSP, & Haworth CMA (2021). The mental health and well-being profile of young adults using social media. Under review at *npj Mental Health Research*.
+>
+> Using the definitions provided by the CRediT ^[CRediT framework: https://casrai.org/credit/] framework for academic attribution:  
+> I was responsible for data curation, formal analysis, investigation, methodology, visualisation, and writing (original draft and reviewing and editing).
+> OD and CH were responsible for funding acquisition, conceptualisation, methodology, investigation, supervision and writing (reviewing and editing).
+> LW and LS contributed to revisions and the methodology.
+
+\newpage
+
+## Abstract {-}
+
+**Background**
+The relationship between mental health and social media has received significant research and policy attention. However, there is little data about who social media users are which limits understanding of confounding factors between mental health and social media.
+
+**Method**
+Here we profile users of Facebook, Twitter, Instagram, Snapchat and YouTube from the Avon Longitudinal Study of Parents and Children population cohort (N=4,083). We provide estimates of demographics and mental health and well-being outcomes by platform.
+
+**Results**
+We find that users of different platforms and frequencies are not homogeneous. User groups differ primarily by sex and YouTube users are the most likely to have poorer mental health outcomes. Instagram and Snapchat users tend to have higher well-being than the other social media sites considered. Relationships between use-frequency and well-being differ depending on the specific well-being construct measured.
+
+**Conclusion**
+The reproducibility of future research may be improved by stratifying by sex and being specific about the well-being constructs used.
+
+
+## Aims {-}
+
+One of the limitations of conducting analyses with internet-based data is that the samples being
+used often lack data on their demographic characteristics, and characteristics related to the 
+outcome of interest, like associated mental health outcomes.
+This chapter aims to provide a thorough description of the demographics of social media users in ALSPAC, and
+also to describe how rates of mental health outcomes differ across social media platforms.
+This is helpful for contextualising analyses in future chapters, as well as more generally
+for understanding the typical prevalences of mental health outcomes on each platform.
+
+\newpage
+
+## Introduction
+
+The trails of data left online by our digital footprints are increasingly being used to measure and understand our health and well-being. Data sourced from social media platforms has been of particular interest given their potential to be used as a form of 'natural' observational data about anything from our voting intentions to symptoms of disease. 
+There is not a single, widely agreed definition of the term 'social media' [@bayer2020social], but for the purposes of this study we understand it to be a broad category of internet-based platforms that allow for the exchange of user generated content by 'users' of that platform [@carr2015social]. 
+Both the huge volumes of data available on such platforms, and their increasing uptake across the population [@ONS2020internet] have led to two main fields of interest in the intersections of social media and mental health. 
+These are the prediction of mental health and well-being from our online data [@chancellor2020methods] and, somewhat reciprocally, the influence of social media on our mental health, particularly in the case of children and young people [@hollis2020role; @dubicka2020]. 
+These fields both ask fundamental questions about the mental health and well-being of social media users, to either understand the ways our mental health influences our social media behaviour, or how our social media behaviours influence our mental health. 
+
+Across both contexts a wide range of psychological outcomes have been studied, including predicting suicide at a population-level [@lee2018advanced] and individually [@roy2020machine], mapping the influences of social media platforms on disordered eating [@santarossa2017socialmedia] and self-harm [@arendt2019effects], understanding the impacts of cyberbullying through social media platforms [@hamm2015prevalence; @craig2020social], and even ethnographic research into online support networks [@naslund2014naturally]. 
+As highlighted in a recent review which considered research on the relationship between social media use and well-being in adolescents [@schonning2020social], there has tended to be an inherent assumption that social media is the cause of harm when examining the effect of social media on our health. 
+However, recent investigations such as those by Orben and Przybylski [@orben2019association; @orben2020teenagers] and Appel and colleagues [@appel2020social] illustrate that the role of social media in causing harm may be overestimated. 
+It seems likely that there is some reciprocal relationship between mental health and social media, that requires longitudinal research studies to begin to understand the complexity, coupled with large representative samples to explore the heterogeneity [@coyne2020does; @primack2021temporal].
+A developing research area is seeking to answer this question using high time-resolution methodologies such as ecological momentary assessment (EMA), which may provide the level of detail needed to make progress in understanding the nuances of causal effects [@bennett2020examining]. 
+Further, there is increasing attention on the role of within-person effects that see impact change between contexts, as well as individual differences [@valkenburg2021social; @beyens2020effect, @weinstein2018social]. 
+Meanwhile, attention has also been drawn to the comparative lack of investigation into the potential benefits of social media, such as access to peer support and the ability to readily connect with friends and family, or into the psychological well-being of social media users as opposed to focusing on pathology. 
+Similarly, most psychological prediction tasks using social media focus on predicting illness rather than wellness [@guntuku2017detecting; @chancellor2020methods].  
+
+Regardless of the direction of interest in the relationship between social media and psychological outcomes, researchers face common challenges, with one of the primary issues being a lack of high-quality information on the characteristics of the whole population of social media users [@amir2019mental]. 
+Valuable demographic information on social media users in the United States is regularly produced by the Pew Research Centre [@pewresearch2019], but often researchers rely on algorithmic means to make predictions about the demographics of the groups they study online if they are not recruiting a participant sample whose demographics are known and can be recorded [@chancellor2020methods; @amir2019mental; @sloan2017tweets]. 
+What we do know about social media users is that they are not homogeneous. 
+The demographic features of populations using them vary across platforms and do not tend to be consistent with the characteristics of the general population [@sloan2015tweets; @sloan2017tweets; @mellon2017twitter; @pewresearch2019]. 
+This work on the demographic context has been important in understanding the samples that can be drawn from social media platforms, but there remains a lack of information about other characteristics of social media users that are relevant to study outcomes, including mental health and well-being. 
+Consequently, attempts to compare user well-being and mental health between platforms may be unknowingly confounded by differences in the mental health profile of each individual platform. 
+Mellon and Prosser [@mellon2017twitter] investigated this form of selection bias with respect to differences in political opinion between Facebook and Twitter, and noted the potential for study outcomes to be biased when the outcome variable of interest is associated with the probability of being included in the sample [@heckman1979sample]. 
+This also has implications for our assessment of mental health and well-being classification algorithms. For instance, if using Twitter data to classify depression in a random sample of users how many of these users should we expect to be depressed? Should we expect to find more depressed users on Facebook or Instagram? 
+This bench-marking would allow the research community, who frequently face the challenge of establishing reliable ground truth in social media research, to contextualise the sensitivity and specificity of developed models [@chancellor2020methods; @amir2019mental].  
+
+This study aimed to address the gap in the availability of high quality descriptive data about social media users by describing social media use in a representative UK population cohort study, the Avon Longitudinal Study of Parents and Children (ALSPAC) [@boyd2013cohort]. 
+I aimed to profile the users of the social media platforms Facebook, Instagram, Twitter, Snapchat and YouTube by considering a range of mental health and well-being measures that are regularly studied, with the objective of better characterising social media users against variables of interest to researchers. 
+These measures included disordered eating, self-harm, suicidal thoughts, and depression as well positive well-being outcomes which are sometimes neglected in the context of social media research [@schonning2020social; @orben2020teenagers; @weinstein2018social] like subjective happiness, mental well-being and fulfilment of basic psychological needs. 
+In answering my research questions I also sought to illustrate how cross-sectional data from a representative population cohort *can* provide meaningful contextual information that informs the way we interpret past and future research about social media users and their mental health. 
+Unlike other studies using cross-sectional data [@schonning2020social] I had no intention of exploring causal questions, but aimed to address unanswered questions of who social media users are, and whether selection bias across platforms may have the potential to unintentionally bias outcome statistics about mental health and well-being.   
+
+
+Specifically, my research questions were:  
+1) Are there demographic differences in patterns of social media use (e.g. frequency)?   
+2) Are there demographic differences in the user groups of different social media platforms?  
+3) Are there differences in the mental health and well-being of those using social media sites at different frequencies?  
+4) Are there differences in the mental health and well-being of user groups of different social media platforms?  
+
+
+\newpage
+
+## Methods
+
+### Sample Description
+
+The sample for this study is drawn from the Avon Longitudinal Study of Parents and Children (ALSPAC) [@boyd2013cohort; @fraser2013cohort; @northstone2019avon]. 
+Pregnant women resident in Avon, UK with expected dates of delivery from 1st April 1991 to 31st December 1992 were invited to take part in the study. 
+The initial number of pregnancies enrolled was 14,541. Of these initial pregnancies, 13,988 children were alive at 1 year of age. When the oldest children were approximately 7 years of age an additional 913 children were enrolled. 
+The total sample size for ALSPAC of children alive at one year of age is 14,901. 
+However, since this time there has been a reduction in the sample due to withdrawals, deaths of those in the cohort and also people simply being lost to follow up. As such the exact number of participants invited to each data collection activity changes with time. 
+Please note that the ALSPAC study website contains details of all the data that is available through a data dictionary and variable search tool (http://www.bristol.ac.uk/alspac/researchers/our-data/). 
+Study data were collected and managed using REDCap electronic data capture tools hosted at the University of Bristol [@harris2009research].
+
+<!-- Numbers about sample sizes and responses are taken from the ALSPAC Data Dictionary > built_pdf > child completed > D1428_YPD -->
+The analysis presented in this study is based on a sub-sample of 4,083 participants who responded to a self-report questionnaire at a mean age of 24 years old in 2016/17. The survey was sent to 9,211 currently enrolled and contactable participants, of whom 4,345 (47%) returned it. 
+To maintain a consistent sample throughout the following analyses I considered the 4,083 observations with complete cases for questions related to self harm, suicidal thoughts, disordered eating, and social media use, and without the respondents who said that they 'didn't know' whether they had a social media account (n < 5); no respondents stated that they did not have a social media account. 
+As well as the survey at age 24, I considered the responses by those in the main sample to a survey one year previously, at age 23, which collected the well-being measures and the Moods and Feelings Questionnaire, matched to their social media use responses at age 24. 
+This resulted in a sub-sample of 2,862 participants who had responded to both surveys. Table \@ref(tab:sample-demogs) gives a comparison of the demographic breakdowns across these samples. 
+
+\newpage 
+
+```{r sample-demogs}
+
+# Just for this chunk we need demographics for the entire cohort.
+cohort_demogs <- df %>% 
+  filter(alive_1yr == "Yes") %>%
+  select(alnqlet, ethnicity, sex, soc_class, ALevelEquiv)
+
+# This gives us a sample of 14,878.
+# However, the total cohort profile is 14,901 (alive at 1yr). 
+# The missing 23 people are probably because of triplets etc being removed. 
+# We can add up to the right sample size as all 'missing'.
+nfill <- 14901 - dim(cohort_demogs)[1]
+# Generate some random IDs for these missing people
+ids <- paste0(replicate(nfill, "missing"), seq(1:nfill))
+# Add the IDs as new rows
+cohort_demogs <- cohort_demogs %>% add_row(alnqlet = ids)
+
+
+# Summarising the number of participants in each subset for the sample description in the methods.
+# Main sample
+tbl_main_sum <- main_df %>% summarise_demographics(.)
+
+# Sub sample
+tbl_sub_sum <- sub_df %>% summarise_demographics(.)
+
+# Whole Cohort
+tbl_all_cohort <- cohort_demogs %>% summarise_demographics(.)
+
+# Combine the summary tables into one
+tbl_summaries <-
+  tbl_merge(
+    tbls = list(tbl_all_cohort, tbl_main_sum, tbl_sub_sum),
+    tab_spanner = c("ALSPAC Cohort", "Main Sample", "Sub-Sample")
+  ) %>%
+  modify_header(label = "Demographic") %>%
+  modify_footnote(update = everything() ~ NA) %>%
+  modify_caption(caption = "The number of participants in each of the two samples used in this study, subset by demographic characteristics.") %>%
+  gtsummary::as_kable_extra(format = "latex",
+                 booktabs = TRUE) %>%
+  kableExtra::footnote(general = "Parental employment class was collected pre-birth of G1 cohort")
+                       
+# Remove unused objects
+rm(tbl_main_sum, tbl_sub_sum, tbl_all_cohort, cohort_demogs)
+
+# Display the output table
+tbl_summaries
+
+```
+
+
+### Measures
+
+This study considered the participants' responses to a range of mental health and well-being measures, as well as demographic data. 
+A brief overview of each of the measures used is given below. 
+
+#### Demographics
+
+Throughout this paper, I use *Male* and *Female* to refer to the participant's assigned sex at birth. 
+Participant ethnicity was reported by their parent/s, and is available in the data as *White*, *Ethnic Minority Group*, or *Unknown*, where Ethnic Minority Group was only available as one group rather than broken down into specific ethnicities.
+There were two variables relevant to socio-economic status. 
+The first was whether the participant had achieved an A Level or equivalent qualification by age 20, the second was their parents' occupation. Parental occupation was measured using the Registrar General's Social Class schema [@szreter1984genesis], and was collected prior to the birth of the index cohort; I took the higher occupational class of the participant's parents where available and grouped the overall schema of six categories into those in *manual work*, and those in *non-manual work*. 
+
+#### Social Media Use
+
+**Social media use** was measured using three questions. 
+These were: (1) *Do you have a social media profile or account on any sites or apps?* with possible responses of 'Yes', 'No' or 'Don't know'; (2) Given a list of social media sites, *Do you have a page or profile on these sites or apps, and how often do you use them?*, where the social media sites were listed and response options were 'Daily', 'Weekly', 'Monthly', 'Less Than Monthly' or 'Never'; (3) *How often do you visit any social media sites or apps, using any device?* with response options being 'More than 10 times per day', '2 to 10 times per day', 'Once per day' or 'Less than once per day'. 
+Here, the definition of 'social media sites' in questions (1) and (3) was left to the participant to interpret, whereas in (2) a specific list was provided. 
+In the following analyses I have summed responses for the use frequencies per platform from question (2) so that 'Weekly', 'Monthly' and 'Less than monthly' are combined to represent `Less than daily'. 
+
+#### Mental Health
+
+**Depressive symptoms** were measured using the short Mood and Feelings Questionnaire (MFQ) [@costello1988scales], a 13-item scale that has been validated for measuring depressive symptoms in adolescents [@angold1995development] and in young adulthood [@eyre2021mfq]. 
+Scores range from 0 to 26, with a higher score indicating more severe depressive symptoms [@angold1995development]. 
+Here I applied a cut-off score of 12 or above as indicating depression [@eyre2021mfq]. 
+
+**Suicidal thoughts** were assessed with the question *Have you ever thought of killing yourself, even if you would not really do it?* with those who indicated that they had `within the past year' being included. 
+Similarly, intentional self-harm was assessed by asking if participants had *hurt [themselves] on purpose in any way* and I included those who said this had happened at least once within the last year.
+
+**Disordered eating** was a composite variable that included participants who indicated that they had been told by a healthcare professional that they had an eating disorder (anorexia nervosa, bulimia nervosa, binge eating disorder or another unspecified eating disorder). 
+Participants were also included if they indicated they had engaged in any of the following behaviours at least once a month over the past year with the intention of losing weight or avoiding weight gain: fasting, throwing up, taking laxatives or medication. 
+This classification of disordered eating followed a similar methodology to that used by Micali and colleagues [@micali2017eating].
+
+
+#### Well-being
+
+Well-being was measured using seven questionnaires. 
+The **Warwick Edinburgh Mental Well-being Scale (WEMWBS)** is a fourteen-item questionnaire that has been validated for measuring general well-being in the general population [@tennant2007warwick; @fat2017evaluating], as well as in young people [@ringdal2018validation; @mckay2017evidence]. 
+There are five response categories for each question, and the total score is between 14 and 70. 
+All items in the WEMWBS are positively worded, and it is focused on measuring positive mental health. 
+
+The **Satisfaction with Life Scale** [@diener1985satisfaction; @pavot2008satisfaction] is five-item questionnaire designed to measure global cognitive judgements of satisfaction with one's life. 
+Each question uses a seven-point Likert-type measure and the total score is between 5 and 35. 
+The **Subjective Happiness Scale** [@lyubomirsky1999measure] is a four-item questionnaire based on seven-point Likert-type questions, with the overall score being a mean of the four questions, lying in the range of 1 to 7.
+
+The **Gratitude Questionnaire (GQ-6)** is a six-item measure that uses a seven-point Likert-type scale to assess individual differences in proneness to experiencing gratitude in daily life [@mccullough2002grateful]. 
+Each score is summed to a total between 6 and 42. The **Life Orientation Test (LOT-R)** is a measure of dispositional optimism that has ten items asked on a 5-point Likert-type scale [@scheier1994lotr]. 
+The overall score is in the range of 0 to 20. 
+
+<!-- https://www.cmu.edu/dietrich/psychology/pdf/scales/LOTR_Scale.pdf -->
+
+<!-- eudaimonic!! Says so here: https://fetzer.org/sites/default/files/images/stories/pdf/selfmeasures/PURPOSE_MEANING-MeaninginLife.pdf -->
+
+The **Meaning in Life** questionnaire has 10 items designed to measure two dimensions of meaning in life: (1) Presence of Meaning (how much respondents feel their lives have meaning), and (2) Search for Meaning (how much respondents strive to find meaning and understanding in their lives) [@steger2006meaning]. 
+Respondents answered each item on a seven-point Likert-type scale, with the two sub-scales scored in total between 5 and 35.
+
+The psychological constructs of autonomy, competence and relatedness associated with self-determination theory were measured using the **Basic Psychological Needs in General (BPN)** questionnaire [@deci2000bpn]. 
+This questionnaire has 21 seven-point Likert-style questions with the final score for each of the three sub-domains being the mean of the responses for that sub-domain. 
+As such each of autonomy, competence and relatedness were scored overall from 1 to 7. 
+
+All of the well-being measures listed were scored in a positive direction, where higher scores indicate higher alignment with the construct being measured. 
+
+### Ethics
+
+Ethical approval for the study was obtained from the ALSPAC Ethics and Law Committee and the Local Research Ethics Committees. 
+Informed consent for the use of data collected via questionnaires and clinics was obtained from participants following the recommendations of the ALSPAC Ethics and Law Committee at the time.
+The full list of ethical approval references for ALSPAC can be found on their website (https://www.bristol.ac.uk/alspac/researchers/research-ethics/).
+
+### Data and code
+
+The datasets analysed in this chapter are not publicly available as the informed consent obtained from ALSPAC participants does not allow data to be made freely available through any third party maintained public repository. However, data used for this chapter can be made available on request to the ALSPAC Executive, with reference to project number B3227. The ALSPAC data management plan describes in detail the policy regarding data sharing, which is through a system of managed open access. Full instructions for applying for data access can be found here: http://www.bristol.ac.uk/alspac/researchers/access/. The ALSPAC study website contains details of all the data that are available (http://www.bristol.ac.uk/alspac/researchers/our-data/).
+
+The code used to produce the results in this study can be found at https://osf.io/rkxm6/.
+
+The descriptive statistics were calculated using the R programming language (v4.0.1) [@rlang] in RStudio (v1.3), primarily using the `tidyverse` (v1.3.0) package [@wickham2019tidyverse] for data manipulation and `ggplot2` (v3.3.1) [@ggplot2] for visualisation. 
+
+\newpage
+
+## Results
+
+### Demographics
+
+I first consider the demographics of social media users across different frequencies of use, and across the five social media platforms: Facebook, Twitter, Instagram, Snapchat and YouTube. 
+These are both taken from the main sample, as described in the Methods. Table \@ref(tab:dems-freq) presents the frequency that participants reported using any social media sites each day, based on sex, ethnicity, education, and their parents' occupational group. 
+Table \@ref(tab:dems-plat) gives the percentage of participants from each demographic group who reported being a user of each platform with any use frequency. 
+
+
+```{r dems-freq}
+
+custom_names <- c(
+   "\\textbf{Characteristic}",
+   "\\textbf{$>$ 10 times a day}\nN = 1576 (39\\%)",
+   "\\textbf{2-10 times a day}\nN = 2144 (53\\%)",
+   "\\textbf{Once a day or less}\nN = 356 (8.7\\%)",
+   "p-value"
+)
+
+# Set up a dataset with each person's overall level of use. 
+main_df %>% 
+  select(id, SM_daily_YPD_, sex, ethnicity, ALevelEquiv, soc_class) %>%
+  mutate_if(is.factor, fct_explicit_na, na_level = "Unknown") %>%
+  filter(SM_daily_YPD_ != "Don't know") %>%
+  mutate(SM_daily_YPD_ = fct_drop(SM_daily_YPD_)) %>% # Drop the empty Don't Know class
+# Create the gt_summary table
+  select(sex, ethnicity, ALevelEquiv, soc_class, SM_daily_YPD_) %>%
+  mutate(ethnicity = fct_recode(ethnicity, 
+                                "Ethnic Minority Groups" = "Non-white")) %>%
+  rename(Sex = sex,
+        Ethnicity = ethnicity,
+        "A Levels" = ALevelEquiv,
+        "Parental Employment Class" = soc_class) %>%
+  tbl_summary(by = SM_daily_YPD_,
+              statistic = all_categorical() ~ "{p}",
+              digits = all_continuous() ~ 2,
+              percent = "row") %>%
+  add_p() %>% # Add chi-squared test
+  modify_footnote(update = everything() ~ NA) %>%
+  modify_caption(caption = "The percentage of each demographic group by their self-reported frequency of using any social media each day.") %>%
+  gtsummary::as_kable_extra(format = "latex",
+                            strip_md_bold = FALSE,
+                 col.names = kableExtra::linebreak(custom_names, align = "c"),
+                 escape = FALSE,
+                 booktabs = TRUE) %>%
+  kableExtra::add_header_above(., c("", "% of Group Using Social Media At Each Frequency" = 3)) %>%
+  kableExtra::footnote(general="p-value calculated using Pearson’s Chi-squared test") %>%
+  kable_styling(latex_options = "hold_position")
+
+rm(custom_names)
+
+```
+
+
+```{r dems-plat}
+
+# Set up colnames for later
+custom_names <- c(
+   "\\textbf{Characteristic}",
+   "\\textbf{Facebook}\nN = 3977 (97\\%)",
+   "\\textbf{Twitter}\nN = 2294 (56\\%)",
+   "\\textbf{Instagram}\nN = 2803 (69\\%)",
+   "\\textbf{Snapchat}\nN = 2864 (70\\%)",
+   "\\textbf{YouTube}\nN = 2989 (73\\%)"
+)
+
+# Set up some useful keys
+no_key <- c("Don't know" = "No")
+y_n_freq_key <- c(y_n_freq_key, no_key)
+
+# Set up the base dataframe
+dems_plat <- main_df %>% 
+  select(id, SM_FB_YPD, SM_Twitter_YPD, SM_Insta_YPD, SM_Snapchat_YPD, SM_YouTube_YPD, 
+         sex, ethnicity, ALevelEquiv, soc_class) %>%
+  mutate_if(is.factor,
+                       fct_explicit_na,
+                       na_level = "Unknown") %>%
+  mutate(Facebook = recode_factor(SM_FB_YPD, !!!y_n_freq_key),
+         Twitter = recode_factor(SM_Twitter_YPD, !!!y_n_freq_key),
+         Instagram = recode_factor(SM_Insta_YPD, !!!y_n_freq_key),
+         Snapchat = recode_factor(SM_Snapchat_YPD, !!!y_n_freq_key),
+         YouTube = recode_factor(SM_YouTube_YPD, !!!y_n_freq_key)) %>%
+  mutate(ethnicity = fct_recode(ethnicity, 
+                                "Ethnic Minority Groups" = "Non-white")) %>%
+  rename(Sex = sex,
+        Ethnicity = ethnicity,
+        "A Levels" = ALevelEquiv,
+        "Parental Employment Class" = soc_class)
+
+# Set up a sub-table for each platform 
+fb_tbl <- dems_plat_tbl("Facebook")
+tw_tbl <- dems_plat_tbl("Twitter")
+in_tbl <- dems_plat_tbl("Instagram")
+sc_tbl <- dems_plat_tbl("Snapchat")
+yt_tbl <- dems_plat_tbl("YouTube")
+
+# Merge the platform tables into a single table
+tbl_merge(
+    tbls = list(fb_tbl, tw_tbl, in_tbl, sc_tbl, yt_tbl)
+  ) %>%
+  modify_spanning_header(all_stat_cols() ~ "% of Group Using Each Platform") %>%
+  modify_caption(caption = "The percentage of each demographic group who indicated that they 
+                 had an account on each of the social media platforms considered.") %>%
+  modify_footnote(update = everything() ~ NA) %>%
+  gtsummary::as_kable_extra(
+                format = "latex",
+                strip_md_bold = FALSE,
+                col.names = kableExtra::linebreak(custom_names, align = "c"),
+                escape = FALSE,
+                booktabs = TRUE) %>%
+  #kable_styling(latex_options = c("scale_down")) %>%
+  kable_styling(latex_options = "hold_position") %>%
+  column_spec(1, width = "8em") %>%  # First col
+  column_spec(2, width = "5em") %>%  # Facebook
+  column_spec(3, width = "5em") %>%  # Twitter
+  column_spec(4, width = "5em") %>%  # Instagram
+  column_spec(5, width = "5em") %>%  # Snapchat
+  column_spec(6, width = "5em")  # YouTube
+
+rm(fb_tbl, tw_tbl, in_tbl, sc_tbl, yt_tbl, dems_plat)
+rm(custom_names)
+```
+
+The breakdown of every demographic by frequency of use on each platform is provided in full in Supplementary Table \@ref(tab:supp-demog-freq-plat). 
+Figure \@ref(fig:dems-plat-gend) illustrates this breakdown for sex, which is the demographic by which all the following results are stratified due to the imbalance in the sample and the results in Table \@ref(tab:dems-freq) and Table \@ref(tab:dems-plat). 
+Social media use and mental health and well-being outcomes are also known to vary according to gender [@winstone2021adolescent; @boyd2015gender; @matud2019gender]. 
+
+```{r dems-plat-gend, fig.cap="Percentage of participants using each of Facebook, Twitter, Instagram, Snapchat and YouTube stratified by the frequency of using that platform, and sex.", fig.width=9, fig.height=5, dpi=360, out.width="100%"}
+
+main_df %>%
+  # Set up a new dataframe 
+  select(SM_FB_YPD, SM_Twitter_YPD, SM_Insta_YPD, SM_Snapchat_YPD, SM_YouTube_YPD, 
+         sex, ethnicity, ALevelEquiv, soc_class) %>%
+  pivot_longer(cols = starts_with("SM_"),
+   names_to = "platform",
+   names_prefix = "SM_",
+   values_to = "freq",
+   values_drop_na = FALSE) %>%
+  mutate(freq = recode_factor(freq, !!!freq_key)) %>%
+  mutate(platform = recode_factor(platform, !!!sm_key)) %>%
+  mutate_if(is.factor,
+                      fct_explicit_na,
+                      na_level = "Unknown") %>%
+  # Make all the factors into characters 
+  mutate(sex = as.character(sex),
+         ethnicity = as.character(ethnicity),
+         soc_class = as.character(soc_class),
+         ALevelEquiv = as.character(ALevelEquiv)) %>%
+  # Making everything long for ggplot
+  pivot_longer(cols=!c(platform, freq), 
+               names_to = c("demographic"), 
+              values_to = "cat") %>% 
+  filter(freq!="Don't know") %>%
+  #Generating the percentages for the plotting function 
+  count(platform, freq, demographic, cat) %>%
+  group_by(platform, demographic, cat) %>%
+  transmute(freq, pct=n/sum(n)*100) %>%
+  dem_plot(., "sex") # Now apply the plot function! 
+
+```
+
+
+### Mental Health and Well-being
+ 
+#### By frequency of use
+
+First I will consider well-being and indicators of poor mental health across different use frequencies. 
+Figure \@ref(fig:mh-freq) shows how indicators of poor mental health vary across the three frequencies of use, which are more than 10 times a day, 2-10 times a day and once per day or less; no participants reported using no social media at all. 
+These frequencies are contextualised by the prevalence of each outcome in all users of social media.
+This figure shows that the lowest category of social media use, that is once per day or less, has the highest proportions of disordered eating, self-harm and suicidal thoughts among women. 
+As seen in Table \@ref(tab:dems-freq), only 7.1% of women and 12% of men used social media less than once per day, and so these measurements are subject to wider confidence intervals. 
+Here, depression is defined as being present in those who scored above the cut-off score of 12 in the Short Mood and Feelings Questionnaire (MFQ) [@eyre2021mfq]. 
+
+```{r df-setup}
+
+# Set up the mental health and well-being dataframes for the following code chunks
+
+mh_df <- main_df %>% 
+  select(id, SM_FB_YPD, SM_Twitter_YPD, SM_Insta_YPD, SM_Snapchat_YPD, SM_YouTube_YPD, sex, MFQ_YPC, suic_YPD, self_harm_YPD, ed_YPD, SM_daily_YPD_) %>%
+  pivot_longer(cols = starts_with("SM_"),
+   names_to = "platform",
+   names_prefix = "SM_",
+   values_to = "freq",
+   values_drop_na = FALSE) %>%
+  mutate(freq = recode_factor(freq, !!!freq_key)) %>%
+  mutate(platform = recode_factor(platform, !!!sm_key)) %>%
+  mutate_if(is.factor,
+                      fct_explicit_na,
+                      na_level = "Unknown")
+
+
+wb_df <- sub_df %>% 
+  select(id, SM_FB_YPD, SM_Twitter_YPD, SM_Insta_YPD, SM_Snapchat_YPD, SM_YouTube_YPD, SM_daily_YPD_, sex, WEMWS_YPC, subj_happ_YPC, SWL_YPC,BPN_YPC_autonomy, BPN_YPC_relatedness, BPN_YPC_competence, LOT_YPC, GQ6_YPC, MIL_pres_YPC, MIL_search_YPC) %>%
+  pivot_longer(cols = starts_with("SM_"),
+   names_to = "platform",
+   names_prefix = "SM_",
+   values_to = "freq",
+   values_drop_na = FALSE) %>%
+  mutate(freq = recode_factor(freq, !!!freq_key)) %>%
+  mutate(platform = recode_factor(platform, !!!sm_key)) %>%
+  mutate_if(is.factor,
+                      fct_explicit_na,
+                      na_level = "Unknown") %>%
+  ungroup()
+
+```
+```{r mh-freq, fig.cap="Percentage of participants who reported disordered eating, self-harm or suicidal thoughts in the past year, or who met the threshold for depression, differentiated by sex and frequency of any social media use with 95\\% confidence intervals.", fig.width=9, fig.height=5, dpi=360, out.width="100%"}
+
+# What is the prevalence of different mental health issues across different patterns of use overall?
+mfq <- mh_df %>% 
+  mfq_threshold(., freq) %>%
+  mutate(measure = "mfq")
+
+mh_df %>% 
+  mh_summary(., freq) %>%
+  full_join(mfq) %>%
+  plot_mh_pcts(., "freq", multiple = TRUE)
+
+```
+Similarly, each well-being construct is presented in Figure \@ref(fig:wb-freq), and contextualised by the result for all users of social media, regardless of frequency. Separate outcomes are presented for the three sub-scales of the Basic Psychological Needs (BPN) scale and the two sub-scales of the Meaning in Life (MIL) scale. The Life Orientation Test measures optimism, and the Warwick Edinburgh Mental Well-being Scale (WEMWBS) measures overall positive well-being. 
+
+```{r wb-freq, fig.cap="Mean scores for seven well-being measures, stratified by sex and overall frequency of using any social media platform, with 95\\% confidence intervals.", fig.width=9, fig.height=11, dpi=360, out.width="100%"}
+
+# How does well-being change across different patterns of use?
+wb_df %>%  
+    wb_summary(., freq) %>%
+    plot_scores(., "freq", multiple = TRUE)
+
+```
+
+#### By platform
+Here I consider the characteristics of **daily** users of each platform. The relative percentage of daily users against other types of users for each platform can be referred to in Figure \@ref(fig:dems-plat-gend). 
+
+```{r mh-plat, fig.cap="Percentage of participants who reported disordered eating, self-harm or suicidal thoughts in the past year, or who met the threshold for depression, differentiated by sex for daily users of each social media platform, with 95\\% confidence intervals.", fig.width=9, fig.height=5, dpi=360, out.width="100%"}
+
+# Get the percentages of those with mfq over the threshold
+mfq <- mh_df %>% 
+  mfq_threshold(., platform) %>%
+  mutate(measure = "mfq") # Set a measure variable for easy combining
+
+# Process the other mh variables, and then plot
+
+mh_plat <- mh_df %>% 
+  mh_summary(., platform) %>%
+  full_join(mfq) %>%
+  plot_mh_pcts(., "platform", multiple = TRUE)
+
+mh_plat
+
+```
+
+
+Finally Figure \@ref(fig:wb-plat) gives the mean well-being score across each platform for each of the seven well-being measures.
+
+```{r wb-plat, fig.cap="Mean scores for seven well-being measures for daily users of each platform, stratified by sex, with 95\\% confidence intervals.", fig.width=9, fig.height=11, dpi=360, out.width="100%"}
+
+
+wb_plat <- wb_df %>% 
+    wb_summary(., platform) %>%
+    plot_scores(., "platform", multiple = TRUE)
+
+wb_plat
+
+```
+
+\newpage
+
+## Discussion
+
+This study used data from a UK population cohort study to describe the demographics and key mental health and well-being indicators of social media users by their self-reported frequency of using social media and five different platforms used at ages 23 and 24. 
+Overall, I saw that there were differences in demographics and mental states of users across use-patterns and platforms used. 
+In the following sections I detail and discuss the implications of these findings for future research across the themes of demographics, use-frequency and platform used. 
+
+In general, just over half of participants reported using social media 2-10 times per day, with more than ten times per day still being common at 39%, and only approximately one in ten participants using social media once per day or less. 
+The results showed that those who rated their social media use at the highest frequency (more than ten times per day) were more likely to be women, more likely to be White and more likely have parents who worked in manual occupations. 
+However, sex was the only demographic that appeared to have a statistical relationship with frequency of use, based on a Chi-squared test. 
+Davies and colleagues [@davies2019social] saw similar results from a Welsh population survey of social media use that found there was a difference in social media use across genders, but not by measures of deprivation.
+
+Figure \@ref(fig:dems-plat-gend) showed that Facebook is, unsurprisingly, the most popular platform both in being used by 97% of the participants and being the most used platform on a daily basis. 
+Instagram and YouTube showed substantial differences in use patterns across male and female users, with approximately double the percentage of women using Instagram daily as men and, conversely, approximately double the percentage of men using YouTube daily as women. 
+Snapchat also saw higher proportions of daily and overall female users, though this difference between sexes was not as dramatic as for Instagram and YouTube. 
+These patterns of use generally agree with the demographics of users on these sites reported for 18-29 year old US adults by the Pew Research Center [@pewresearch2019], although the sample used here saw slightly more Twitter users than their estimated 38%, and fewer YouTube users than their estimated 91% (see Table \@ref(tab:dems-plat)). 
+This difference in YouTube users may be partly explained by the fact that it is the only platform with a substantially higher proportion of men than women using it (68% of women vs 83% of men), and that men were under represented in the sample overall compared to women. 
+This emphasises the importance of stratifying results by sex.
+
+Previous research into the demographics of UK Twitter users also aligns with my findings that men and those from higher socio-economic backgrounds are more likely to be Twitter users than women [@sloan2017tweets; @mellon2017twitter]. 
+Here, I also saw that those from ethnic minority groups are more likely to be Twitter users than White participants, though this is limited by the fact that I could not further separate out results for people with different ethnicities due to the variables available.
+Across the sample, Twitter was the only social media platform that had a noticeably higher proportion of both A Level educated participants and parents in non-manual occupations. 
+Snapchat saw the reverse pattern with a higher proportion of participants who did not have A Level qualifications and a higher proportion of participants whose parents worked in manual occupations. 
+
+Overall, the sex differences between all male and female users varied across outcomes. 
+For instance, a higher percentage of women experienced depression, disordered eating and self-harm overall, but the gap in the prevalence of suicidal thoughts between men and women was much smaller. 
+This concurs with evidence from the last UK-wide psychiatric morbidity survey, in that 'common mental health disorders' are more prevalent in women than men [@psychmorbidity2016].
+When it comes to well-being, I saw that women also display higher mean levels of well-being across most measures. 
+Exceptions are the Life Orientation Test, which showed men generally had higher levels of optimism, the Subjective Happiness Scale where scores were roughly equivalent, and the WEMWBS where men's general well-being was slightly higher. 
+These results, apart from the WEMWBS, are consistent with findings on UK wide well-being at the time of the survey, and that men tend to have higher optimism in general [@onswellbeing2016; @glaesmer2012psychometric]. 
+Previous research into the WEMWBS has not generally found large sex differences, but there is evidence that in younger samples there are differences that may be explained by socio-economic status [@tennant2007warwick; @fat2017evaluating; @clarke2010warwick]; I note that higher attrition of men in this sample was likely to lead to a bias towards men who are more socio-economically privileged, which may explain why they had higher well-being. 
+
+The patterns of mental health outcomes by use frequency displayed in Figure \@ref(fig:mh-freq) showed some support for the so-called 'Goldilocks theory' of social media use that hypothesises a quadratic, rather than linear, stimulus-response relationship between social media use and mental well-being [@weinstein2018social, @przybylski2017large]. 
+This would mean that moderate use of social media, rather than very little or excessive use, is best for well-being.
+However, this pattern did not consistently apply. 
+For instance, there was an inverse relationship between social media use and percentage of women who self-harm, and in men only the group with the highest level of social media use had more severe depressive symptoms.
+Here I was using self-reported use-frequency where, as I discuss further in the limitations, an individual's assessment of their own use-frequency may be biased by their relationship with social media and overall mental health [@Shaw2020Quantifying].
+
+When considering the results by well-being measure in Figure \@ref(fig:wb-freq) we saw that subjective happiness and optimism as measured by the Life Orientation Test both appeared relatively consistent across use categories. 
+Relatedness presented the clearest difference across use categories, with relatedness in women being higher for the two most frequent use frequencies. 
+However, perhaps the most notable outcome was the inconsistency between well-being scales which implies that the choice of scale could affect the interpretation of the impact of well-being on social media use. 
+Research into the relationship between social media use and well-being has been said to suffer from what is known as the 'jingle-jangle' paradox where the term 'well-being' is used as a catch-all for anything from depression rates to life satisfaction [@kross2020social]. 
+This conflation of different well-being measures leads to comparisons of different psychological constructs which may interact differently with social media use: this is hypothesised as one of the reasons that researchers find conflicting evidence for this relationship [@meier2020computer, @kross2020social], which my results support. 
+This also adds to the picture of researcher degrees of freedom in choosing how to measure psychological constructs, which has been shown to have a substantial impact on the outcome of analyses of social media and mental health [@orben2019association]. 
+Subjective well-being is a complex and multi-faceted psychological concept [@diener2018advances], and these findings illustrate the importance of recognising that different measures of well-being could imply different relationships between social media and 'well-being'.
+
+When considering participant outcomes by daily users of each platform more consistent patterns emerge than for use-frequencies. 
+I saw that, particularly for women, YouTube had the highest proportion of users reporting disordered eating, self-harm, suicidal thoughts and depression, with higher prevalence of depression in female users of YouTube compared to male users (Figure \@ref(fig:mh-plat)). 
+Whilst overall mental well-being across platforms, as measured by the WEMWBS in Figure \@ref(fig:wb-plat), shows YouTube as being marginally but not drastically lower than other platforms, other well-being measures illustrated some key differences.
+For instance, YouTube users had lower life satisfaction, relatedness and, particularly for female users, levels of competence (Figure \@ref(fig:wb-plat)). 
+Conversely, daily users of Instagram, and in some cases Snapchat, appeared to have the highest subjective well-being across most measures, with this being particularly noticeable for relatedness, gratitude and happiness (Figure \@ref(fig:wb-plat)). 
+The role of self-determination theory in social media use has previously been explored for Facebook and social media in general [@lin2016need, @berezan2018pursuit] with relatedness hypothesised as a key motivating factor for social media use. 
+Previous findings have shown that Instagram and Snapchat are used more for social interaction than Twitter and Facebook [@alhabash2017tale], and so my results may corroborate the importance of relatedness in the use of particular platforms. 
+Regardless of the specific measure, my results have illustrated that there is variation amongst platforms which further challenges the idea that 'social media' or 'social networking sites' are a homogeneous group, and reiterates the importance of understanding the context of research about or using social media [@mellon2017twitter; @alhabash2017tale].
+
+At face value these results appear to directly contrast with the outcomes of the *Status of Mind* report published by the Royal Society for Public Health [@statusofmind2018], where young people rated YouTube as being the most beneficial site for their well-being and Instagram as the worst, based on health-related outcomes such as their anxiety and depression. 
+My findings that a higher prevalence of YouTube users suffer from poorer mental health and well-being may mean that whilst some platforms are seen as 'worse' for young people's mental health, that does not equate to finding more unwell young people on those platforms. 
+One explanation may be that those experiencing poorer mental health are more likely to use YouTube because they experience more benefits from using it, such as community building and peer support [@naslund2014naturally], than they do from spending time on sites like Instagram.
+However, this is certainly an interesting area for further exploration in future quantitative and qualitative research.
+
+Whilst this research draws evidence from a robust and well-documented study and the sample being from a birth cohort means that these results are not confounded by age, there are limitations to the cohort sample that I have used. 
+Firstly, the cohort measures a specific age group so I can only infer information about a single age group at each measurement time point. 
+I suspect that different patterns might be found at different ages, knowing that rates of various mental health conditions such as anxiety, depression and suicidality change over the course of childhood, adolescence and adulthood [@maughan2013depression], and since each generation may use social media differently [@di2020views]. 
+It is also important to note that the two data collection points used in this study were taken a year apart, and so not all measures were taken exactly at the same time.
+This means that although I have primarily considered the data cross-sectionally there is a potential for some longitudinal effects to have influenced the data.
+ALSPAC has also seen differential attrition over time and so, as seen in Table \@ref(tab:sample-demogs), the sample for this study when the index cohort were in their early twenties has fewer men than women, and more participants from privileged socio-economic groups in terms of education and class background [@boyd2013cohort].
+As well as this, typical social media use changes over time and by age [@pewresearch2019], and so further assessment of social media use across a variety of population-representative age groups would be the most effective way to understand differences between generations. 
+As discussed in the Methods section, there was also a limitation in that ethnicity was only available as two categories (White or Ethnic Minority Groups) and so it was not possible to look further into differences in social media by users of difference ethnicities.
+Given these limitations of the sample it would be valuable to conduct similar research in other cohorts over the coming years.
+
+Another limitation of this study is a lack of specificity about the nature of social media use that participants are referring to when responding. It is possible that activities related to 'using' social media, such as posting content versus passive use, change depending on platform used and that there are individual preferences to account for [@wang2018reciprocal; @alhabash2017tale; @winstone2021adolescent; @winstone2022types]. 
+For instance, YouTube is distinct from other platforms in this study in that its primary function is passive content consumption as opposed to social networking. 
+Previous research has suggested a reciprocal association between passive social media use and lower subjective well-being [@wang2018reciprocal], whilst using social media for direct communication has been positively associated with perceived friend support [@frison2020toward].
+This may better reflect the uses of platforms like Snapchat. 
+As well as the subjective nature of 'use', there are also ongoing concerns about using self-reported measures of use-frequency to measure social media behaviours. 
+Emerging evidence is showing that self-reports do not align well with objective measurement due to recall bias and differences in interpreting how to include notifications or fleeting checks of social media [@parry2020discrepancies; @ernala2020well] with self-reported smartphone pickups underestimating associations with mental health compared to objective measures of use [@Shaw2020Quantifying]. 
+It might be that different ways of measuring social media use, such as types of use, are more useful when considering associations with mental health and well-being outcomes [@winstone2021adolescent].
+It is worth noting that the use-frequency measures used in this study are distinct from screen-time, and equivalent use-frequency across platforms may have different time implications; someone may spend short amounts of time on Instagram or Snapchat checking notifications, but do so frequently, versus visiting YouTube once in a day but spending several hours watching content. 
+These nuances are challenging to capture, but by reporting on mental health prevalence across the available responses in a cohort study we can add to the growing understanding of how self-reported social media use frequency is related to mental health.
+
+
+In summary, these results amplify the importance of attending to complexity when measuring and analysing social media use and mental health and well-being.
+It is important to note that the results do not, and cannot, imply that different types of social media use cause poorer or better health outcomes in young people, but they do provide vital contextual information on user groups that can help us better understand the reasons that previous research has found conflicting results.
+I have provided estimates of seven well-being measures and the prevalence of four key mental health outcomes (depression, disordered eating, suicidal thoughts and self-harm) across the five platforms Facebook, Twitter, Instagram, Snapchat and YouTube, as well as across three use frequencies. 
+My findings have shown that the demographic and mental health footprint of each platform is different. Primarily users differ by sex, but when it comes to platforms YouTube is particularly likely to have both male and female users with poorer mental health and well-being across a range of indicators, alongside evidence that daily Instagram users have better overall well-being than daily users of other platforms. 
+My findings also indicate that relationships between use-frequency and multiple mental health and well-being outcomes are often non-linear, which supports the importance of considering non-linear dose-response relationships between social media and mental health and well-being in future research. 
+Lastly, I showed that the relationship between use-frequencies and well-being changes depending on the measure of well-being used. This means that we cannot conflate different types of well-being, and doing so will likely result in low replicability.
+
+This research has implications for both those who conduct research on the relationship between social media and mental health, and those who study mental health prediction. 
+We must ensure that we are considering both platform-specific and outcome-specific effects rather than conflating types of social media use, social media sites and well-being as single entities. 
+Future research should also stratify results by sex since it is unlikely that studies with differently balanced samples will replicate. 
+My findings on use-frequencies also suggest that we cannot assume linear relationships between social media use and mental health. 
+The understanding of these methodological issues would be improved by examining profiles of different user age-groups, as well as examining relationships between these variables longitudinally to understand the potential for reciprocal effects. 
+The differences between platforms should be further considered too, as to how different content types and communication modes on different platforms may affect mental health differently. 
+

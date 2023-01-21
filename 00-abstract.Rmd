@@ -1,0 +1,20 @@
+<style>
+body {
+text-align: justify}
+</style>
+
+<!--- 299 words -->
+
+Data science for mental health using social media may allow us to derive digital phenotypes that present new avenues for our understanding, measurement and treatment of mental health outcomes. 
+The timeliness and scale of these data are significant advantages over traditional survey methods. 
+However, to ensure new technologies are developed safely and responsibly we need to use high quality ground truth that ensures that they are as robust as they can be.
+In this thesis I explore how population birth cohorts, specifically the Avon Longitudinal Study of Parents and Children (ALSPAC), could provide this high quality evidence through social media data linkage programmes.
+I use interdisciplinary methods to analyse questionnaires, focus groups and linked Twitter data from the ALSPAC cohort to understand who the populations are that use social media and how acceptable social media data linkage is to participants. 
+I then assess the quality of the literature on mental health inference from social media, and go on to use the linked data to see whether this form of data linkage can provide new information for digital phenotyping for mental health. 
+Overall, I find that cohort participants are generally accepting of social media data linkage, and that the linked sample broadly represents the population of people who use Twitter.
+Using this linked data I illustrate that population level inference of mental health outcomes of depression, anxiety and well-being are feasible at a population-level, and that using data from a well-specified sample allows us to explore model error in more detail. 
+Future work conducting social media data linkage in other cohort samples is recommended to allow for comparisons across ages and geographies.
+The involvement of potential users in future research is also encouraged. 
+Ultimately, access to higher quality of ground truth measurement will lead to safer and more reliable technologies. 
+
+

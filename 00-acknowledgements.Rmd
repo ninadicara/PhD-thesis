@@ -1,0 +1,34 @@
+<style>
+body {
+text-align: justify}
+</style>
+
+There are so many people that I want to thank for supporting and encouraging me throughout my PhD.
+First, Claire and Oliver. 
+Thank you for all the thought and time you have given me, as well as the space and encouragement to follow my own curiosity in my research.
+You are both brilliant scientists and I have learned so much from working with you.
+Second, thank you to Luke. 
+I have really appreciated our in-depth conversations about my research, and all the advice you have given me about work and beyond.
+Thank you all for being such kind and thoughtful supervisors throughout my PhD, especially given all the challenges of the last few years.
+This PhD has allowed me to achieve so many things, and your confidence in me has made all the difference.
+
+To Valerio and Al, I consider myself very lucky to have had you both as colleagues and friends. 
+I have learned a huge amount from you both, which was helped by you always being such patient and enthusiastic teachers.
+Thank you both.
+Thanks also to Lizzy, Jacks, Benji, Chris and Jess for being the kind of colleagues that are a joy to get to work with. 
+Having a warm group of PhD students to be part of made the whole process, and the move to Bristol, much easier, and I am so glad to know you all. 
+
+Outside of work I have been very lucky to have friends and family who have supported me through all my ups and downs.
+To Tiff, thanks for always being one message away, for chatting data with me and, of course, for moving to Bristol.
+To my brother Luke, thanks for making me laugh and for providing late night maths support. 
+I am very proud of you.
+To Ben, you didn't hesitate to agree to move our lives across the country so I could do this. 
+You've been there for me every day as sounding board, head technician and supporter.  
+I am so grateful for you.
+Lastly, to my Mum and Dad. 
+From every school pick-up and drop-off, to proof reading this whole thesis, I cannot even begin to thank you for everything you have done that has enabled me to do this.
+The determination you both have to work hard and achieve what you set your minds to has always inspired me to do the same, and played a big part in helping me to get this done.
+
+Finally, my thanks must go to the participants and staff of ALSPAC. 
+The data I have used in this thesis represents hundreds of hours of participant time that has been donated to science, which has made this research possible.
+I am also very grateful to the GW4 Biomed MRC DTP who funded my PhD. It was supported by grant MR/N0137941/1 awarded to the Universities of Bath, Bristol, Cardiff and Exeter from the Medical Research Council. 

@@ -1,0 +1,18 @@
+book_filename: "thesis"
+chapter_name: "Chapter "
+delete_merged_file: false
+# new_session: no  # Rerun each chapter in a new session
+
+rmd_files: ["01-index.Rmd",
+            "01A-PART-A.Rmd",
+            "02-cohort-profile.Rmd",
+            "03-focus-groups.Rmd",
+            "04-linked-data.Rmd",
+            "04B-PART-B.Rmd",
+            "05-scoping-review.Rmd",
+            "06-sentiment.Rmd",
+            "07-discussion.Rmd",
+            "08-appendix.Rmd",
+            "09-references.Rmd"]
+
+download: [["thesis.pdf", "PDF"]]

@@ -1,0 +1,19 @@
+<style>
+body {
+text-align: justify}
+</style>
+
+\textbf{Di Cara NH}, Winstone L, Sloan L et al. (In Press) The mental health and well-being profile of young people using social media. \textit{npj Mental Health Research}. \footnote{Forms Chapter 2 of this thesis. The contribution statement given in this chapter.}
+
+\textbf{Di Cara NH}, Zelenka N, Day H et al. (2022) Data Ethics Club: creating a collaborative space to discuss data ethics. \textit{Patterns}, 3(7).  doi: \href{https://doi.org/10.1016/j.patter.2022.100537}{10.1016/j.patter.2022.100537}
+
+Woolf B, \textbf{Di Cara NH}, Moreno-Stokoe C et al. (2022) Investigating the transparency of reporting in two-sample summary data Mendelian randomization studies. \textit{International Journal of Epidemiology}. doi: \href{https://doi.org/10.1093/ije/dyac074}{10.1093/ije/dyac074}
+
+Shiells K, \textbf{Di Cara NH}, Skatova A et al. (2022) Participant acceptability of digital footprint data collection strategies: an exemplar approach to participant engagement and involvement in the ALSPAC birth cohort study. \textit{International Journal of Population Data Science}, 5(3). doi: \href{https://doi.org/10.23889/ijpds.v5i3.1728}{10.23889/ijpds.v5i3.1728}
+
+\textbf{Di Cara NH}, Song J, Maggio V et al. (2021) Mapping Population Vulnerability and Community Support During COVID-19: a case study from Wales. \textit{International Journal of Population Data Science}, 5(4). doi: \href{https://doi.org/10.23889/ijpds.v5i4.1409}{10.23889/ijpds.v5i4.1409}
+
+\textbf{Di Cara NH}, Boyd A, Tanner AR et al. (2020) Views on social media and its linkage to longitudinal data from two generations of a UK cohort study. \textit{Wellcome Open Research}, 5(44). doi:  \href{https://doi.org/10.12688/wellcomeopenres.15755.2}{10.12688/wellcomeopenres.15755.2} \footnote{Forms Chapter 3 of this thesis. The contribution statement given in this chapter.}
+
+
+

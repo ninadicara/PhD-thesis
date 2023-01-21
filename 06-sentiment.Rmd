@@ -1,0 +1,1738 @@
+```{r include_packages6, include = FALSE}
+# This chunk ensures that the thesisdown package is
+# installed and loaded. This thesisdown package includes
+# the template files for the thesis and also two functions
+# used for labeling and referencing
+if(!require(devtools))
+  install.packages("devtools", repos = "http://cran.rstudio.com")
+if(!require(dplyr))
+    install.packages("dplyr", repos = "http://cran.rstudio.com")
+if(!require(ggplot2))
+    install.packages("ggplot2", repos = "http://cran.rstudio.com")
+if(!require(ggplot2))
+    install.packages("bookdown", repos = "http://cran.rstudio.com")
+if(!require(thesisdown)){
+  library(devtools)
+  devtools::install_github("ismayc/thesisdown")
+  }
+library(thesisdown)
+```
+
+```{r setup6, include=FALSE}
+knitr::opts_chunk$set(fig.width=9, fig.height=5, 
+               echo=FALSE, 
+               warning=FALSE, message=FALSE, 
+               cache=TRUE)
+
+# Supress scientific notification
+options(scipen=999)
+
+library(here)
+# Data processing
+library(dplyr)      # Piping and data management
+library(lubridate)  # Clean date parsing
+library(forcats)    # Factor data types management
+library(stringr)    # String manipulation
+library(broom)      # Model outputs to tidy tables
+library(janitor)    # Useful functions for tidying dataframes
+library(tidyr)      # Useful functions for tidying dataframes
+library(purrr)      # Vectorised functions instead of loops
+library(tibble)     # Data management
+library(progress)   # Progress bar
+library(rstatix)    # t tests in pipes (t_test)
+# Visualisation and presentation
+library(ggplot2)    # Plotting
+library(ggpubr)     # For ggarrange
+library(scales)     # Nice breaks/formatting functions
+library(corrplot)   # Correlation plots
+library(ggcorrplot) # Correlation plots
+library(gtsummary)  # Beautiful tables
+library(ggrepel)    # Labelling the graph points
+library(kableExtra) # Outputting tables to PDF
+library(cowplot)    # Arranging multiple plots on a grid
+# Modelling packages
+library(caret)
+library(glmnet)
+
+# Load useful functions
+source(here("index", "data", "sentiment", "functions.R"))
+
+# Read in the data
+twitter <- readRDS(here("index", "data", "twitter", "2021-07-07_tweets_no_smallcell.RDS"))
+surveys <- readRDS(here("index", "data", "twitter", "2021-09-29_surveys_tidy_short.RDS"))
+
+twitter <- twitter %>%
+  # Turn the times into numbers. We have 6 4-hour blocks. 
+  mutate(time_num = case_when(time_4hrs == "00:00-3:59" ~ 1,
+                              time_4hrs == "04:00-7:59" ~ 2,
+                              time_4hrs == "08:00-11:59" ~ 3,
+                              time_4hrs == "12:00-15:59" ~ 4,
+                              time_4hrs == "16:00-19:59" ~ 5,
+                              time_4hrs == "20:00-23:59" ~ 6)) %>%
+  mutate(time_night = case_when(time_4hrs == "00:00-3:59" ~ "night",
+                              time_4hrs == "04:00-7:59" ~ "day",
+                              time_4hrs == "08:00-11:59" ~ "day",
+                              time_4hrs == "12:00-15:59" ~ "day",
+                              time_4hrs == "16:00-19:59" ~ "day",
+                              time_4hrs == "20:00-23:59" ~ "day")) %>%
+  rename(id = pid2934_1)
+
+surveys <- surveys %>% 
+  # Make an overall age variable that takes max of the two surveys
+  mutate(age = pmax(COVID1_age_yrs, COVID2_age_yrs, na.rm = TRUE)) %>%
+  # Add generation column
+  mutate(generation = recode_factor(person, !!!c(yp = "G1", m = "G0", pnr = "G0"))) %>%
+  rename(id = pid2934) %>%
+  # There are two copies of one of the PIDs (it's a mother so duplicate mother?) Need to look into this. 
+  distinct() %>%
+  # We want a summary column for any mental health conditions - if they said yes to any of the Qs then this gives Yes. 
+  mutate(any_mh = as.factor(case_when(
+    COVID1_anx == "Yes" | COVID1_dep == "Yes" | COVID1_psych == "Yes" ~ "Yes",
+    COVID1_anx == "No" | COVID1_dep == "No" | COVID1_psych == "No" ~ "No"))) %>%
+  mutate(anx_dep = as.factor(case_when(
+    COVID1_anx == "Yes" & COVID1_dep == "Yes" ~ "Yes",
+    COVID1_anx == "No" | COVID1_dep == "No" | COVID1_psych == "No" ~ "No")))
+
+weights_rename <- c("None" = "1",
+         "1" = "0.5 + (0.5)/(1 + (day/(max(day)/2))^3)",
+         "2" = "(1 - day/max(day)) + 1/max(day)",
+         "3" = "1/sqrt(day)",
+         "4" = "1/day")
+
+# Make sure NA aren't displayed in output tables
+options(knitr.kable.NA = '')
+
+# Join the survey and Twitter data so we can filter Twitter data by survey date
+data_t1 <- twitter %>% 
+    left_join(., 
+            (surveys %>% select("id", "sex", "any_mh", "anx_dep", contains("cont"), contains("completed"))),
+            by="id") %>%
+    drop_na(COVID1_completed_date) %>%
+    # Take Twitter data up to 2 weeks before the survey was completed
+    filter(date > (COVID1_completed_date - dweeks(2))) %>%
+    filter(date <= COVID1_completed_date) %>%
+    # filter out those who have tweeted less than twice
+    group_by(id) %>%
+    filter(n() != 1) %>%
+    ungroup()
+
+data_t2 <- twitter %>% 
+  left_join(., 
+            (surveys %>% select("id", "sex", "any_mh", "anx_dep", contains("cont"), contains("completed"))),
+            by="id") %>%
+  drop_na(COVID2_completed_date) %>%
+  # Take Twitter data up to 12 weeks before the survey was completed
+  filter(date > (COVID2_completed_date - dweeks(2))) %>%
+  filter(date <= COVID2_completed_date) %>%
+    group_by(id) %>%
+    filter(n() != 1) %>%
+    ungroup()
+
+```
+
+# Modelling mental health using linked Twitter data {#sentiment}
+
+## Abstract {-}
+
+**Background** 
+The digital data we create by interacting with online platforms is a novel source of temporal information about ourselves. 
+Sentiment analysis of our social media data has been of particular interest for understanding fluctuations in our mental health and well-being over time. 
+However, it is challenging to obtain data linked to longitudinal information about participants' mental health and so most studies have been conducted at single time points.
+In this chapter Twitter data from ALSPAC was used to assess the effectiveness of sentiment, and patterns of life, to model of depression, anxiety and general well-being.
+
+**Method**
+Ground truth data using the MFQ, GAD-7 and WEMWBS was collected at two time points in April to May 2020 and May to July 2020 for G1 and G0 participants. 
+Multiple regression models were used to model pattern of life and sentiment variables from LIWC, LabMT and VADER against each mental health outcome at the first survey time point. 
+Models were tested using different lengths of training data and different decay functions for older tweet data.
+Finally, the most successful models were validated at the second survey time point. 
+
+**Results**
+Two weeks of Twitter data was generally sufficient to predict all three mental health outcomes. 
+Models trained at the first time point perform relatively well at the second, but error is slightly biased by the generation of participants and, for anxiety and depression, their sex. 
+Whilst models accounted for a modest amount of variance in the outcomes (between 10 and 13%) we also see that prediction intervals are wide.
+
+**Conclusion**
+Sentiment and pattern of life features are likely to be most suitable for broad population-level trends rather than individual-level inference.
+Using models specific to attributes which mental health is known to vary by, like gender, may improve performance of population trend modelling using Twitter.
+Additionally, whether individual aggregation is necessary for accurate population inference is a question that should be explored further.
+
+## Aims {-}
+
+To use the linked Twitter data for modelling mental health outcomes in ALSPAC, and in doing so see if this novel data is practically useful for this purpose, and if it allows us explore new questions about the relationship between mental health and Twitter.
+
+\newpage
+
+## Introduction
+
+Predicting mental health from our digital data is an area of research that has seen increased interest year-on-year since 2013 [@de2013predicting]. 
+The potential benefits of achieving new digital phenotypes for mental health could be huge, and a means of supporting progress in the provision of, and access to, mental heath care. 
+The future applications of these novel technologies have been considered at both the individual and population levels.
+For instance, they could be a means of providing already overstretched services with a way of ensuring patients receive appropriate support if flagged between long check-up times. 
+Detecting individual poor mental health could also be used to direct early interventions which may prevent more complex issues arising at a later stage at a greater cost for all involved through 'now-casting' technologies [@mcgorry2018early; @tsakalidis2018]. 
+Alternatively, monitoring population mental health could be used at a strategic level to put in place adequate services to meet anticipated demand [@kolliakou2020mental]. Here *populations* may refer to specific sub-populations like student groups [@melcher2021digital; @melcher2020digital] and emergency workers [@blair2021using], or to geographic populations [@jaidka2020estimating].
+Applications of this type have been of particular interest since the onset of the COVID-19 pandemic, where using internet data to provide high frequency information became very popular, particularly in the form of data visualisation dashboards [@budd2020digital]. 
+Whilst many of these population-level overviews were related to COVID-19 symptomatology and case prediction [@ivankovic2021features], data relating to mood and mental health were also generated, with the aim to provide timely updates on community psychological well-being and resilience [@di2020mapping; @pellert2020dashboard; @guntuku2019understanding; @xue2020twitter].
+Twitter, as a public and easily available data source for digital footprint data, is often a popular source of data for these types of applications. 
+However, as seen in Chapter \@ref(scoping-review), the majority of studies that have previously used Twitter data have not had access to ground truth data about the mental health and well-being outcomes that they were attempting to predict, which presents a challenge to the robustness of their results.
+
+In this Chapter I will explore the way that features derived from Twitter data, particularly sentiment-related features, are associated with the mental health outcomes of depression, anxiety and general well-being when working with data from a known and well-characterised population sample. 
+This will include how effective models derived using these features are under a variety of different temporal conditions, such as altering the distance into the past they consider data and testing how well they predict forward into the future.
+To begin with, I will give an overview of the use of sentiment in mental health inference in general, as well existing evidence on the role of temporality in mental health inference and understanding.  
+Given the focus on individual monitoring in the review of existing research in Chapter \@ref(scoping-review) I will primarily focus here on covering the literature of population-level approaches to mental health monitoring. 
+
+### Sentiment in population mental health inference
+
+In the literature on population-level mental health inference approaches have covered a variety of outcomes including social anxiety [@lee2019tool], suicidality [@choi2020development; @sinyor2021association], depression [@cohrdes2021indications; @li2020modeling; @sharma2021analyzing], well-being [@jaidka2020estimating; @zhang2021influence; @tsakalidis-etal-2016-combining] and happiness [@dodds2011temporal; @al2019arabia]. 
+Interestingly, of 17 articles on population-level outcomes that were found during the systematic seach for Chapter \@ref(scoping-review) five were focussed on positive mental health outcomes like well-being and happiness, whereas only one study did so out of the 165 included in the main review.
+A dedicated review article on the topic of using big data to study subjective well-being in 2017 found 33 articles [@luhmann2017using].
+This suggests that it is more common for positive mental health to be studied in the context of populations than individuals.
+
+The modelling approaches used for population-level outcomes tend to be based on sentiment features. 
+For instance, the *Hedonometer* created by Dodds et al. in 2011 to derive temporal patterns of happiness used a crowd-sourced sentiment lexicon for happiness in English language, where words were rated based on how 'happy' they were (this lexicon is known as LabMT) [@dodds2011temporal]. 
+A similar lexicon approach for happiness has been applied in Arabic [@al2019arabia], and other studies have used categories of the Linguistic Word Inquiry Count (LIWC) [@pennebaker2015development] word lists of *anger*, *anxiety*, *death*, *risk*, and *sadness* to assess psychological distress [@viviani2021assessing] or *anxiety*, *anger*, *sadness* and *positive emotions*  [@pellert2020dashboard]. 
+Other sentiment methods have included using overall sentiment valence measures such as TextBlob [@loria2018textblob] and VADER [@hutto2014vader] as a proxy for overall mental well-being [@priyadarshini2021study; @zhang2021influence], and the NRC Emotion Lexicon [@nrcemolex2013] which contains the emotions of anger, anticipation, fear, surprise, sadness, joy, disgust, and trust [@xue2020twitter]. 
+As well as sentiment, patterns of life at a population level have also been found to be useful indicators of mental health and well-being of populations [@frank2013happiness]. 
+*Patterns of life* originated as term in surveillance and usually refers to using geo-location data to build an understanding of daily routines. However it is used in digital phenotyping to refer to non-language features of data, such as times of day that users are active, the frequency of their interactions with others, or what types of content they are producing [@CoppersmithDredzeHarman_2015; @frank2013happiness].
+
+Similarly to findings in the variety of methods for sourcing ground truth in Chapter \@ref(scoping-review), models for population monitoring are validated in a variety of ways. 
+A popular method is to use figures reported in publicly available national or regional surveys against tweets sourced from those geographic areas [@jaidka2020estimating; @choi2020development; @gibbons2019twitter; @cohrdes2021indications]. 
+Some studies have manually annotated tweets to train models [@lee2019tool], whereas others took a different approach and used pre-trained models from existing research for classifying mental health outcomes in individuals and applied them to population data [@guntuku2019understanding].
+There were also studies which did not attempt to validate their findings against external data, and whose aims were primarily to visualise and describe changes in sentiment features over time or geographic areas [@xue2020twitter; @lee2019tool; @frank2013happiness], often implied as a proxy for overall mental well-being.
+
+For those studies that did attempt validation, the results illustrated that associations between measures such as happiness and sentiment were not always positive, as we might expect. 
+Jaidka et al. [@jaidka2020estimating] tested the difference in inferring subjective well-being using both machine learning and dictionary-based sentiment measures, and found that life satisfaction and happiness outcomes were negatively associated with the LIWC measure of Positive Emotion.
+Similarly, Gibbons et al. [@gibbons2019twitter] found that population-level self-rated mental health was negatively associated with the LabMT average happiness measure developed by Dodds et al. [@dodds2011temporal], and the overall sentiment measure produced by the VADER algorithm [@hutto2014vader]. 
+Since both VADER and LabMT are coded in a positive direction this implies that as the mental health outcome improves the sentiment score becomes more negative.
+These contrary patterns do not tend to arise in the individual-level literature, which is usually more focussed on classification than regression (see Chapter \@ref(scoping-review)). 
+On an individual level previous work exploring the relationship between sentiment and depression by Coppersmith et al. [@CoppersmithDredzeHarman_2015] found that the LIWC categories of pronouns, swear words, anger, negative emotion and anxiety were significantly different for those with depression, though swear words, anger and negative emotion were highly correlated with each other given that they shared many core words. 
+This research also found that the importance of sentiment versus pattern of life features differed depending on the outcome disorder, having compared depression, Post Traumatic Stress Disorder (PTSD) and Seasonal Affective Disorder (SAD) [@CoppersmithDredzeHarman_2015]. 
+
+More recent sentiment related work has posited that differences between users with and without depression are better explained by the presence of short phrases that represent cognitive distortions, which aligns with Cognitive Behavioural Therapy theory [@bathina2021individuals]. 
+However, these features are not standard phrases in current sentiment dictionaries.
+Other recent research has explored the connectivity between LIWC sentiment categories using network analysis, as opposed to solely their given values [@kelley2022using]. 
+This research found that whilst the LIWC categories were associated with depression symptom severity as expected (i.e. that negative sentiment is positively correlated with depression symptom severity, and positive emotion is negatively correlated) depressive episodes were best explained by increased network connectivity between the nine categories [@kelley2022using]. 
+
+In summary, sentiment lexicons are a popular approach for representing outcomes in both the population-level and individual-level prediction of mental health. 
+However, there are inconsistencies in how sentiment is associated with mental health, and a wide variety of approaches to modelling different mental health disorders making it challenging to compare results from different studies and across different mental health outcomes. 
+More sophisticated methods, such as language models and word embeddings, are also much more popular features in the recent literature than sentiment in general [@wang2022global; @venugopalan2022enhanced] as the technology to produce them, or adapt existing trained models such as BERT [@devlin2018bert], has become more accessible. 
+
+### Temporality in mental health inference
+
+As well as the features used in mental health modelling, there is a question of how those features should be constructed, and how much influence their construction has on the outcome of interest.
+Mental health is rarely a consistent, life-long state and instead has a temporal nature which may last different lengths of time for different mental health disorders or facets of well-being [@hitchcock2022computational].
+For instance, an episode of depression is required to have lasted for more than two weeks to be formally recognised as a disorder [@dsmV2013] and in research asking participants to record self-identified episodes of depression over the last year, Kelley et al. [@kelley2022using] found that the mean length was approximately 80 days. 
+Other outcomes such as suicidality may vary significantly, with research suggesting that suicidal intent can precede a suicide attempt by as little as 10 minutes [@deisenhammer2008duration; @simon2001characteristics].
+General well-being on the other hand is not a clinically diagnosed disorder, and instead is a positive outcome thought to represent optimal psychological functioning.
+Given this, there is a not a single agreed definition of well-being as a whole, but in general different types of well-being are thought to be relatively stable over time [@hudson2017day].
+Despite these variations in the experiential length of mental health disorders and well-being most clinical self-report surveys ask respondents to answer on the basis of the past two to four weeks. 
+
+Whether or not ground truth collected using diagnostic screening questionnaires actually represents the past two weeks of the respondents' emotions is unclear. 
+Bias in memory, such as a bias towards negative events has long been thought to be an important component of mental health disorders like anxiety and depression [@mogg1987memory; @duyser2020negative].
+Additionally the 'forgetting curve', first proposed by Ebbinghaus in 1885 [@ebbinghause1885] and recently reproduced [@murre2015replication], suggests that memories are gradually lost over time which may mean that more recent events are more pertinent to self-assessments of mental well-being.
+The differential temporal signatures of different mental health conditions, and the cognitive memory bias presented by the so-called 'negativity bias' and the 'forgetting curve' may all have an impact on the relationship between an individual's recorded experiences through their tweets over the period a self-assessment asks them to consider, and the symptoms that they then report.
+Tchalac et al. tested this potential impact in their prediction of depression in individuals using the PHQ-9, a self-completed depression questionnaire, as ground truth, and found that two weeks of tweet data did give the best results [@tlachac2020screening].
+Similarly in predicting depression from tweets de Jesús Titla-Tlatelpa and colleagues also found shorter periods of time generated less error [@de2021profile]. 
+In the detection of suicidal ideation Sawhney and colleagues found that up to three months of data was useful, but that after this the benefit of additional data saturated [@sawhney2021phase]. 
+Research modelling suicidality has also tested the impact of a temporal weighting function, that effectively introduces a decay in the influence of a tweet the further it is from the measurement time point, and found that an exponential decay performed better than no weighting at all [@sinha2019suicidal]. 
+These results suggest that there might be different lengths of tweet history relevant to different disorders, and that weightings that represent 'forgetting' could improve the accuracy of inference using Twitter data.
+
+Another question that has been raised in Chapter \@ref(scoping-review) is how models perform when tested at future time points.
+This is particularly relevant to research where the task is to monitor mental health for change, as opposed to classification of single tweets for risk levels.
+For instance, if the task we are attempting to model is a tweet-level system that flags individual tweets that appear concerning for further follow up then a single time-point may be enough.
+This being said, it still does not tell us how a model might translate to a different time of year, or even a different year altogether.
+Research has shown [@mayor2021twitter; @dodds2011temporal] that there are strong time-based effects to the emotions we express on Twitter. 
+For instance, emotions as measured through sentiment algorithms change throughout the day following circadian rhythms, and also weekly patterns (known as circaseptan rhythms) [@mayor2021twitter]. 
+Models that intend to monitor change with time may need to take these rhythms into account, as well as understand how sensitive predictions are to unexpected events that have the potential to disrupt the population's baseline levels of mental health and well-being at a local, national or international level [@al2019arabia]. 
+For instance natural disasters, inter/national conflict, or a pandemic. 
+
+
+### The present study
+
+In this chapter I will explore a series of research questions that investigate the efficacy of using Twitter sentiment and patterns of life to model three mental health outcomes: depression, anxiety and general well-being. 
+Specifically, the research questions are:
+
+1) How well do patterns of life and standard sentiment codings of positive and negative emotion predict depression, anxiety and general well-being?
+2) Is prediction of depression, anxiety and general well-being improved by using a larger number of linguistic categories derived from Twitter data?
+3) What is the effect of changing the window and weightings of Twitter data on prediction performance?
+4) How do predictions perform over time?
+
+I will use the linked Twitter data described in Chaer \@ref(linked-data), collected within the ALSPAC cohort study to explore these questions, which allows for high quality ground truth data about the participants and their mental health to be modelled using data at two time points.
+
+
+Mental health outcomes will be modelled as continuous variables, represented by the score of the questionnaire used to measure them. 
+This approach allows us to assess changes in mental health as improving or worsening, rather than movement between a states of illness and 'well-ness'. 
+Whilst a continuous scale cannot possibly capture the complexity of the experience of a mental health disorder, it goes some way towards acknowledging most mental illnesses are not binary experiences and symptoms can vary significantly between individuals. 
+
+## Methods
+
+### Sample
+
+This study uses data from the Avon Longitudinal Study of Parents and Children (ALSAPC) [@boyd2013cohort; @fraser2013cohort; @northstone2019avon]. 
+Pregnant women resident in Avon, UK with expected dates of delivery 1st April 1991 to 31st December 1992 were invited to take part in the study. 
+The initial number of pregnancies enrolled is 14,541 (for these at least one questionnaire has been returned or a “Children in Focus” clinic had been attended by 19/07/99). 
+Of these initial pregnancies, there was a total of 14,676 foetuses, resulting in 14,062 live births and 13,988 children who were alive at 1 year of age. 
+When the oldest children were approximately 7 years of age, an attempt was made to bolster the initial sample with eligible cases who had failed to join the study originally. 
+As a result, when considering variables collected from the age of seven onwards (and potentially abstracted from obstetric notes) there are data available for more than the 14,541 pregnancies mentioned above. 
+The number of new pregnancies not in the initial sample.
+The total sample size for analyses using any data collected after the age of seven is therefore 15,454 pregnancies, resulting in 15,589 foetuses. Of these 14,901 were alive at 1 year of age.
+
+The linked Twitter data used in this chapter were collected from any adult ALSPAC participants who had a Twitter account and consented to collection of their Twitter data. 
+More detailed information on the collection of these data is given in Chapter \@ref(linked-data). 
+There were 654 linked participants in total. 
+The ground truth data used in this study were from questionnaires sent to ALSPAC participants at the beginning of the COVID-19 pandemic. 
+These surveys were sent to all adults in ALSPAC, meaning that both the index children (**G**eneration 1) and their parents (**G**eneration 0) were surveyed. 
+Responses for the first COVID-19 survey were collected between the 3rd April 2020 and the 14th May 2020. 
+Responses for the second COVID-19 survey were collected between the 26th May 2020 and 3rd July 2020. 
+These surveys will be referred to as Survey 1 and Survey 2 throughout this chapter. 
+Figure \@ref(fig:surveywindows) shows the two data collection periods, relative to the number of tweets collected during these periods.
+
+```{r surveywindows, dpi=360, fig.cap="The windows of data collection for Survey 1 and Survey 2 where the psychological outcomes were measured.", out.width="100%", fig.width=9, fig.height=3} 
+# Data of survey windows
+windows <- data.frame(survey = as.factor(c("Survey 1", "Survey 2")), 
+                     xmin = c(min(surveys$COVID1_completed_date, na.rm = TRUE), min(surveys$COVID2_completed_date, na.rm = TRUE)),
+                     xmax = c(max(surveys$COVID1_completed_date, na.rm = TRUE), max(surveys$COVID2_completed_date, na.rm = TRUE)),
+                     ymin = -Inf,
+                     ymax = Inf)
+
+twitter %>% filter(date >= dmy("01-01-2020")) %>% 
+  ggplot(.) +
+  theme_minimal() +
+  geom_histogram(aes(x=date), bins = 43) +
+  geom_rect(data = windows, aes(xmin = xmin, xmax = xmax, fill = survey),
+            ymin = -Inf, ymax = Inf) +
+  scale_fill_manual(name = "Survey Windows", 
+                    # The 80 at the end is for 50% transparency!
+                    values = c("Survey 1" = "#F8766D80", "Survey 2" = "#00BFC480")) +
+  xlab("") + 
+  ylab("Number of Tweets per Week\n") +
+  scale_x_date(date_breaks = "months" , date_labels = "%b")
+
+```
+
+```{r sample-overlap}
+t1_ids <- data_t1 %>% distinct(id) %>% pull()
+t2_ids <- data_t2 %>% distinct(id) %>% pull()
+
+# Number of people who are included in both samples
+both_surveys <- length(intersect(t1_ids, t2_ids))
+# Number of people who are in either of the samples
+all_surveys <- length(union(t1_ids, t2_ids))
+```
+
+For the purposes of modelling tweets I chose to initially focus on the two week window for each participant that led up to the date that they completed the survey, which concurs with the time period participants were asked to evaluate in the mental health measures they completed. 
+Participants were required to have tweeted at least twice in those two weeks in order to be included. 
+In total this resulted in 151 participants with linked Twitter data that completed Survey 1, and 136 participants with linked data that completed Survey 2.
+Since different members of the ALSPAC sample tend to complete each survey, and they may be tweeting at different times, the participants who completed the two surveys do not perfectly overlap.
+`r both_surveys` are included in both samples, with a total of `r all_surveys` participants across both, as illustrated in Figure \@ref(fig:venn).
+
+
+```{r venn, fig.cap="The number of linked participants with two tweets in the two weeks leading up to the survey date for Surveys 1 and 2, and how many participants are unique to each survey or overlap across both.", out.width = "50%", fig.align = 'center', fig.width=3, fig.height=3, dpi = 360}
+
+library(ggvenn)
+ids_in <- list("Survey 1" = t1_ids, "Survey 2" = t2_ids)
+
+ggvenn(
+  ids_in, 
+  columns = c("Survey 1", "Survey 2"),
+  fill_color = c("#F8766D80", "#00BFC480"),
+  stroke_size = 0.5,
+  text_size = 2.5,
+  set_name_size = 2.5
+  )
+
+```
+
+
+### Measures
+
+I will briefly describe the measures used in this study, which includes both the mental health measures collected and the sentiment analysis algorithms used to generate the feature variables. 
+
+#### Psychological Outcomes
+
+Depressive symptoms were measured using the short Mood and Feelings Questionnaire (MFQ) [@costello1988scales], a 13-item scale that has been validated for measuring depressive symptoms in adolescents [@angold1995development] and in young adulthood [@eyre2021mfq]. 
+Scores range from 0 to 26, with a higher score indicating more severe depressive symptoms [@angold1995development]. 
+
+Symptoms of anxiety were measured using the GAD-7, designed to be a brief measure for generalized anxiety disorder [@spitzer2006brief] which has been validated in a primary care population. 
+It has seven items, with an overall maximum score of 21. Higher scores indicate more severe symptoms of anxiety. 
+
+General well-being was measured using the Warwick Edinburgh Mental Well-being Scale (WEMWBS), which is a fourteen-item questionnaire that has been validated for measuring general well-being in the general population [@tennant2007warwick; @ng2016evaluating], as well as in young people [@ringdal2018validation; @mckay2017evidence]. 
+There are five response categories for each question, and the total score is between 14 and 70. 
+All items in the WEMWBS are positively worded, and it is focused on measuring positive mental health. 
+Uniquely of the three measures used in this study, higher scores indicate more positive outcomes in the WEMWBS, and it was also designed so that the distribution of scores would be roughly normal, as opposed to the diagnostic questionnaires which tend to be skewed towards lower (and thus not clinically relevant) scores. 
+
+For all three measures respondents were asked to consider how they have felt for the past two weeks. 
+
+#### Derived Twitter variables
+
+##### Pre-processing
+
+A detailed description of how the Twitter data in general was linked and derived using the *Epicosm* software [@epicosm] is included in Chapter \@ref(linked-data). 
+Each algorithm described below was applied to each individual tweet, with the variables being provided for analysis at tweet level. 
+No textual pre-processing was conducted by *Epicosm* for VADER or LabMT. 
+For the LIWC each tweet was tokenised, with a word considered to be a string of alphanumeric characters or underscores delimited from other words by spaces. 
+
+##### VADER Sentiment
+
+The Valence Aware Dictionary and sEntiment Reasoner (VADER) [@hutto2014vader] is a sentiment analysis tool developed with the specific intention of being sensitive to short social media length text. 
+It aims to convey the orientation of sentiment (positive versus negative) as well as the strength of the intensity of the sentiment. 
+This is achieved through a rule based system that takes consideration of punctuation use and capitalization in the text to infer intensity. 
+
+VADER returns an overall figure for each of positive, neutral and negative sentiment. These represent the proportion of the text that falls into each category, without any adjustment for word-order sensitivity, negation or punctuation amplification (which are used to account for intensity). These three scores are all between 0 and 1, and add up to 1. 
+The sentiment intensity adjustments are then made for the *compound* score, which is a weighted composite score of the positive, neutral and negative scores, normalised between -1 and +1 where higher scores indicate more positive sentiment overall [@hutto2014vader]. 
+
+##### LabMT Sentiment
+
+LabMT (Language Assessment by Mechanical Turk) is a sentiment dictionary developed by Dodds and Danforth in 2011 [@dodds2011temporal], which they designed to measure happiness in text based on human ratings of individual words.
+It was developed by collecting ratings of 10,222 words on a nine-point scale of happy to sad from Amazon's Mechanical Turk crowdsourcing platform, with the original word list drawn from Twitter, Google Books, music lyrics and the New York Times [@dodds2011temporal]. 
+Each word received 50 ratings, and each rater assessed 100 randomly chosen words. 
+The development of this sentiment dictionary was influenced by the ANEW lexicon [@bradley1999affective] which is also a popular measure of sentiment from written text and used a similar approach, though for only 1,034 words with a group of student raters.  
+The overall score for each tweet is the average happiness of the words in the tweet. 
+
+##### Linguistic Inquiry and Word Count (LIWC) {#methodsliwc}
+
+The Linguistic Inquiry and Word Count (LIWC) has been in development since 1993 by Pennebaker and colleagues, with most recent version of the tool made available in 2015 [@pennebaker2015development]. This is version that I use and refer to here. 
+The LIWC is a dictionary based approach that has a series of words in each of its 73 categories.
+Since the most recent version in 2015 it can also accommodate short phrases and text-based emoticons, such as ':-)' which would be included under 'Positive Emotion'. 
+The development process for the LIWC was extensive and involved several rounds of rating, consensus and discussion between a group of expert 'judges', which started originally by drawing words from common emotion rating scales like the Positive and Negative Affect Scale (PANAS) [@watson1988development].
+
+The categories for the LIWC generally have a hierarchical structure, which at the highest level are split into *Linguistic Dimensions*, *Other Grammar* and *Psychological Processes*. Within these categories are then further categories, and in the case of *Linguistic Dimensions* and *Psychological Processes*, sub-categories. For instance, *Affective Processes*, a sub-category of *Psychological Processes*, is further split into *Positive Emotion*, *Negative Emotion*, *Anxiety*, *Anger* and *Sadness*, but *Affective Processes* is also a category in its own right that is the combination of all words in its sub-category. 
+In some cases like *Social Processes*, the overarching category also contains words that do not fit into any of its sub-categories. 
+Additionally, many categories and sub-categories share words, so for instance the word "cried" is part of five categories [@pennebaker2015development]. 
+As a result of this structure LIWC categories are not independent and are often correlated with one another.
+The overall score for each LIWC category that is derived for a piece of text is the proportion of words in the piece of text that came from each category.
+As such this score can range between 0 and 1. 
+
+Whilst the LIWC is generally described in the literature as being a sentiment analysis tool, it actually incorporates several different types of dictionary based analysis, including parts of speech in its *Linguistic Dimensions* like tagging of different types of pronouns, verbs and adjectives, as well as a lexicon based approach to topic modelling through recording categories included in the text. 
+Whilst these approaches are not as sophisticated as tools directly developed for the purposes of parts of speech tagging and topic modelling, they do provide some insights which go beyond a typical sentiment analysis tool. 
+
+##### Patterns of life
+
+Patterns of life refer to data about people's routine use of Twitter. 
+This can include many different features but in this study refers to the number of tweets someone has sent, the mean and variance of the time interval they sent their tweets within, the proportion of their tweets which were re-tweets and the proportion of their tweets which were sent between midnight and 4am. 
+
+Mean time intervals were calculated by numbering each 4-hour time window that tweets were sent within over the day as 1 to 6, with 1 referring to midnight-4am and 6 being 8pm-midnight. 
+The mean and variance of this variable were taken for the aggregated dataset. 
+Pattern of life variables were not weighted for the analyses described in Section \@ref(methodsweight) since they are calculated over the whole time window of tweets, rather than on a tweet-level.
+
+### Analysis 
+
+The analyses of these data and the investigation of the research questions outlined above will be split into four sections.
+
+#### How well do patterns of life and codings of emotion predict mental health? {#standardanalysis}
+
+To answer this question I conducted individual regression analyses of each of sub-categories for *Affective Processes* in the LIWC, *VADER positive*, *negative* and *compound* and the *LabMT* score as dependent variables against each of the continuous scales of depression, anxiety and general well-being as the independent variables. 
+Every analysis included the sex and generation of the participants as dependent variables. 
+For each of the sentiment variables the mean and variance was taken for each individual over the two weeks leading up to Survey 1, and Survey 1 was used as the ground truth data source.
+To be included in the analysis participants must have tweeted at least twice in the two week period.
+The same approach was repeated for the patterns of life variables.
+Both depression and anxiety were transformed using the natural log on their raw values plus one due to inherent skewness in these clinical scales that leads to a long right hand tail. 
+General well-being measured with the WEMWBS follows a roughly normal distribution and so transformation was not necessary.
+
+Two weeks of data up to the survey period was chosen because it reflected the time period that each of the MFQ, GAD-7 and WEMWBS measures (used to measure depression, anxiety and general well-being respectively) asked participants to consider when responding.  
+It has also been seen to be an effective time period in other research using similar measures as ground truth [@tlachac2020screening]. 
+Survey 1 was chosen as the ground truth data point because it had the higher number of participants, and because there was evidence in the data (see Figure \@ref(fig:surveywindows)) and in the literature [@shugars2021pandemics; @patnaude2021public] that the events surrounding the national protests in the Black Lives Matter movement at the beginning on June 2020 had a significant impact on Twitter data sourced during that period, which overlaps with Survey 2.  
+
+#### Is prediction improved by using a larger number of linguistic categories? {#more-features}
+
+Here I considered whether predicting the mental health outcomes using a wider range of variables than just the standard codings of positive and negative emotion was beneficial.
+In order to do this I used all variables already included in the first stage of analysis, as well as all of the other LIWC categories available, and repeated the regression analyses described in Section \@ref(standardanalysis) for each of these available variables.
+Continuous variables were again aggregated by individual using their mean and variance.
+There were a total of 160 variables tested. 
+Once again I considered these over the two weeks previous to the completion of Survey 1 for each participant, for only those participants with two tweets in that two week period.
+
+Based on this analysis I then considered the variables which were associated with each outcome with p < 0.05.
+The decision not to use the bonferroni adjusted p-value was made ad-hoc given that for two of the outcomes this would have left no associated variables.
+Additionally, the bonferroni threshold is likely to be conservative for groups of variables where there are likely to be high correlations between variables. 
+These Twitter features were then used as the dependent variables in a multiple regression model which predicted each of depression, anxiety and general well-being.
+Some variables were excluded from the model due to multi-collinearity which is discussed further in the Results.
+
+For each model five-fold cross validation repeated ten times was used to obtain a more robust estimate of model error.
+
+#### What is the effect of changing the window and weightings of data? {#methodsweight}
+
+Next I considered how the performance of the predictive models changed when the training data was weighted according to a decay function, and when the window of data input to the model was lengthened. 
+The same features and modelling methodology as described in Section \@ref(more-features) were used.  
+
+The decay functions tested for weighting the data were:
+\begin{equation}
+  \frac{1}{2} + \frac{1}{2 + (16\frac{day}{max(day)})^{3}}
+  (\#eq:1)
+\end{equation}
+\begin{equation}
+  (1 - \frac{day}{max(day)}) + \frac{1}{max(day)}
+  (\#eq:2)
+\end{equation}
+\begin{equation}
+  \frac{1}{\sqrt{day}}
+  (\#eq:3)
+\end{equation}
+\begin{equation}
+  \frac{1}{day}
+  (\#eq:4)
+\end{equation}
+as well as no weighting function.
+These were chosen to represent a range of options across the potential feature space of weightings, as visualised in Figure \@ref(fig:visfuns).
+
+```{r visfuns, fig.cap="The five options of weighting functions", out.width = "100%", fig.width = 8, fig.height = 3}
+
+# Define the functions for plotting
+x      <- function(x) 1                               # None
+x_other <- function(x) 0.5 + (1/(2 + 16*(x/14)^3))    # Function 1
+x_max    <- function(x) (1 - x/max(x)) + 1/max(x)     # Function 2
+x_sqrt <- function(x) 1/sqrt(x)                       # Function 3
+x_over <- function(x) 1/x                             # Function 4
+
+# Set up a colour code for them 
+decay_colScale <- scale_color_manual(
+  name = "Function",
+  values = c(
+    "None"="#A6D854",
+    "1" = "#66C2A5",
+    "2" = "#FC8D62",
+    "3" = "#E78AC3",
+    "4" = "#8DA0CB"
+  )
+)
+
+# Plot the functions
+ggplot() +
+  xlim(1, 14) +
+  geom_function(aes(colour = "None"), fun = x) +
+  geom_function(aes(colour = "1"), fun = x_other) +   
+  geom_function(aes(colour = "2"), fun = x_max) + 
+  geom_function(aes(colour = "3"), fun = x_sqrt) +
+  geom_function(aes(colour = "4"), fun = x_over) +
+  theme_minimal() + 
+  labs(x = "\nNumber of days since survey measurement time point",
+       y = "Weight given to the tweets posted on this day\n",
+       colour = "Function") +
+  decay_colScale
+
+```
+
+Windows of training data were tested by extending the input data to include 2, 4, 6, 8, and 12 weeks since the date participants completed Survey 1. 
+Each combination of window and weighting options was tested on the same 151 participants against their mental health outcomes at Survey 1. 
+In this experiment the mean result following ten repeats of five-fold cross validation was used for each combination of weighting scheme and window length.
+On each repeat individuals were randomly allocated into a fold, with each individuals data never contained in both the test and train data.
+
+
+#### How do the predictions perform over time?
+
+Based on the best models found from varying the window and weighting on Survey 1 data, I analysed the model error for each outcome, as measured by the Root Mean Squared Error (RMSE), when predicting values at Survey 2. 
+This essentially treated the Survey 2 data as a validation dataset for the models trained on data from Survey 1. 
+Error was calculated for all predicted results, and then also for the sub-groups of sex and generation.
+For these sub-groups some individuals from the training set would have also been in the validation set because they responded to both surveys (see Figure \@ref(fig:venn)), and these individuals were retained due to the impact on sample sizes if they were removed.
+However, to test the impact of including the same people in both samples, RMSE was also calculated for those who were within the original training sample, and those who were not. 
+Welch's t-test was used to test for differences between the sub-groups.
+
+Following this analysis I applied the predictions made by the models to fortnightly data between the 1st January 2020 and 31st October 2020 and visualised the predictions made for each outcome over time. 
+Each two week period is considered as a discrete section of the data (that is, none of the data from each period overlapped) and the predictions here were made for any participant who had tweeted in that time, not restricted to any tweet frequency, nor to the original sample of respondents.
+Prediction error was calculated for these predictions. 
+
+### Software and code
+
+The Twitter data were collected and pre-processed using Epicosm [@epicosm]. 
+ALSPAC survey data were collected and managed using REDCap electronic data capture tools hosted at the University of Bristol [@harris2009research]. 
+REDCap (Research Electronic Data Capture) is a secure, web-based software platform designed to support data capture for research studies.
+
+Statistical analysis of the data were performed using the `R` language (v4.0.4) in RStudio (v1.4). 
+Data tidying was primarily conducted using the `tidyverse` suite of packages [@wickham2019tidyverse], with data visualization using `ggplot2` (v3.3) [@ggplot2] and tabulation using `gtsummary` (v1.5) [@gtsummary] and `kableExtra` (v1.3). 
+Modelling was conducted using the `caret` package (v6.0) [@kuhn2008building]. 
+
+### Ethics 
+
+As discussed in Chapter \@ref(linked-data), the data collection process for the linked Twitter data in ALSPAC was conducted with ethical approval and informed consent from the participants. 
+Secondary data analysis projects using ALSPAC data are not required to go through ethical approval, although the projects themselves must be approved by the ALSPAC Executive Committee. 
+However, internal ethical approval processes do not necessarily capture the potential ethical and societal risks of data science projects, and are primarily concerned with protecting the participants who are taking part in a study. 
+
+Since mental health prediction is an area of research that has potentially far-reaching consequences I have included in Appendix \@ref(datahazards) an analysis of this project using the Data Hazards framework.
+Data Hazards are labels that can identify potential risks generated by the pursuit of a research project, or generation of research data (see Zelenka and Di Cara 2022 [@datahazards] for a detailed explanation). 
+The labels chosen for this project were informed by two reflective peer feedback groups in 2021, where other researchers and data scientists considered the potential consequences of this project and discussed the reasoning for the inclusion or exclusion of each Data Hazard. 
+
+\clearpage
+## Data Description
+
+To give a thorough overview of the data being modelled, this section will provide a variety of descriptive information about the sample, the Twitter data and its temporal patterns.
+
+### Mental health outcomes across the samples
+
+The first descriptions will be of the psychological outcomes themselves. 
+Table \@ref(tab:sample-descrip) gives a description of each outcome at each of the survey time-points, and between the linked sample and the samples included in this study. 
+We can see that the samples used in this study have slightly poorer mental health outcomes across all three measures compared with the whole linked sample. 
+We also know from Chapter \@ref(linked-data) that the linked sample also has marginally poorer mental health outcomes than the main ALSPAC sample. 
+Summaries of differences across both Survey time points by sex, and generation are available in the Appendix in Tables \@ref(tab:sex-mh-tweets) and \@ref(tab:gen-mh-tweets) respectively.
+
+
+```{r sample-descrip}
+survey1_tbl <- data_t1 %>% 
+    select(id, sex, generation, COVID1_gad_cont, COVID1_mfq_cont, COVID1_wemwbs_cont, COVID2_gad_cont, COVID2_mfq_cont, COVID2_wemwbs_cont) %>%
+    rename(
+    Sex = sex,
+    Generation = generation,
+    "Anxiety (Survey 1)" = COVID1_gad_cont,
+    "Depression (Survey 1)" = COVID1_mfq_cont, 
+    "Well-being (Survey 1)" = COVID1_wemwbs_cont, 
+    "Anxiety (Survey 2)" = COVID2_gad_cont, 
+    "Depression (Survey 2)" = COVID2_mfq_cont, 
+    "Well-being (Survey 2)" = COVID2_wemwbs_cont
+  ) %>%
+    mutate(Sex = recode(Sex, "F" = "Female", "M" = "Male")) %>%
+    distinct() %>%
+    select(-id) %>%
+    tbl_summary()
+
+survey2_tbl <- data_t2 %>%
+    select(id, sex, generation, COVID1_gad_cont, COVID1_mfq_cont, COVID1_wemwbs_cont, COVID2_gad_cont, COVID2_mfq_cont, COVID2_wemwbs_cont) %>%
+    distinct() %>%
+    rename(
+    Sex = sex,
+    Generation = generation,
+    "Anxiety (Survey 1)" = COVID1_gad_cont,
+    "Depression (Survey 1)" = COVID1_mfq_cont, 
+    "Well-being (Survey 1)" = COVID1_wemwbs_cont, 
+    "Anxiety (Survey 2)" = COVID2_gad_cont, 
+    "Depression (Survey 2)" = COVID2_mfq_cont, 
+    "Well-being (Survey 2)" = COVID2_wemwbs_cont
+  ) %>%
+    mutate(Sex = recode(Sex, "F" = "Female", "M" = "Male")) %>%
+    select(-id) %>%
+    tbl_summary()
+
+whole_sample_tbl <- surveys %>%
+    select(sex, generation, COVID1_gad_cont, COVID1_mfq_cont, COVID1_wemwbs_cont, COVID2_gad_cont, COVID2_mfq_cont, COVID2_wemwbs_cont) %>%
+  rename(
+    Sex = sex,
+    Generation = generation,
+    "Anxiety (Survey 1)" = COVID1_gad_cont,
+    "Depression (Survey 1)" = COVID1_mfq_cont, 
+    "Well-being (Survey 1)" = COVID1_wemwbs_cont, 
+    "Anxiety (Survey 2)" = COVID2_gad_cont, 
+    "Depression (Survey 2)" = COVID2_mfq_cont, 
+    "Well-being (Survey 2)" = COVID2_wemwbs_cont
+  ) %>%
+    mutate(Sex = recode(Sex, "F" = "Female", "M" = "Male")) %>%
+    tbl_summary()
+
+tbl_merge(tbls = list(whole_sample_tbl, survey1_tbl, survey2_tbl), tab_spanner = c("Linked Sample", "Survey 1 Sample", "Survey 2 Sample")) %>%
+  as_kable_extra(booktabs = TRUE,
+                 caption = "Summary of key features of the linked Twitter sample against the sample who tweeted at least twice and completed Survey 1 (N=151), and those who tweeted at least twice and completed Survey 2 (N=136)") %>%
+    kable_styling(position = "center", latex_options="striped")
+
+rm(survey1_tbl, survey2_tbl, whole_sample_tbl)
+
+```
+
+When using the generally accepted cut off scores of 12 or more for the MFQ (measuring depression) [@eyre2021mfq] and ten or more for GAD-7 (measuring anxiety) [@spitzer2006brief] then there would be `r nrow(surveys %>% filter(COVID1_mfq_cont >= 12))` people in the sample with depression and `r nrow(surveys %>% filter(COVID1_gad_cont >= 10))` with anxiety at Survey 1. At Survey 2 this would be `r nrow(surveys %>% filter(COVID2_mfq_cont >= 12))` and `r nrow(surveys %>% filter(COVID2_gad_cont >= 10))` for depression and anxiety respectively. 
+
+```{r mh-correlations}
+
+da_cor <- cor(surveys$COVID1_mfq_cont, surveys$COVID1_gad_cont, use = "complete.obs", method = "spearman")
+dw_cor <- cor(surveys$COVID1_mfq_cont, surveys$COVID1_wemwbs_cont, use = "complete.obs", method = "spearman")
+aw_cor <- cor(surveys$COVID1_gad_cont, surveys$COVID1_wemwbs_cont, use = "complete.obs", method = "spearman")
+```
+
+It is common for depression and anxiety to co-occur, and for general well-being to be related to both depression and anxiety.
+As such I would expect for all of these combinations of variables to be somewhat correlated.
+Spearman's *r* for each pair are `r round(da_cor, 2)` between depression and anxiety, `r round(dw_cor, 2)` between depression and general well-being, and `r round(aw_cor, 2)` between anxiety and general well-being.
+In summary, all of these pairs are moderately correlated, with all correlations rejecting the null hypothesis that there was no relationship.
+
+
+### Twitter features
+
+Sentiment features tend to be fairly highly correlated since many of them are attempting to measure roughly the same concepts.
+Figure \@ref(fig:corplot-sentiment) shows the intercorrelations between the features that have been identified for this study as representing codings of emotion or affect.
+The VADER scores are highly intercorrelated as would be expected since their scores are proportional to one another.
+VADER neutral is also negatively associated with LIWC affect which appears to be best related to variables that describe positive affect. 
+
+```{r corplot-sentiment, fig.cap="A correlation plot of the relationships between sentiment variables that relate to codings of emotion or positive and negative sentiment, without aggregation by individual. Correlations are calculated using Spearman's Rank, with colour representing the correlation coefficient.", fig.width=8, fig.height=10, out.width="95%"}
+
+library(ggcorrplot)
+
+affect_varbs <- c("liwc_affect", "liwc_posemo", "liwc_negemo", "liwc_anx", 
+              "liwc_anger", "liwc_sad", 
+              "vader_negative", "vader_neutral", "vader_positive", "vader_compound", 
+              "labmt_emotion_valence")
+
+data_t1 %>% 
+  select(all_of(affect_varbs)) %>%
+  rename_with(., sent_rename_many) %>%
+  cor(.,  method = "spearman") %>%
+  ggcorrplot(.,
+   outline.col = "white",
+   ggtheme = ggplot2::theme_minimal,
+   colors = c("#6D9EC1", "white", "#E46726"),
+   lab = TRUE)
+```
+
+Another important feature of Twitter data is the difference in tweeting frequencies between individuals. 
+Figure \@ref(fig:tweetsdist) is a histogram of these frequencies in the two weeks leading up to Survey 1, and shows that there is a huge amount of variability in the volume of tweets produced. 
+
+```{r tweetsdist, out.width="100%", fig.cap = "Histogram of tweet frequency over the two weeks leading up to Survey 1, for those who have tweeted at least twice Tweets per person are transformed with the binary logarithm.", fig.width = 8, fig.height = 3, out.width="100%"}
+
+data_t1 %>%
+  mutate(day = as.numeric(COVID1_completed_date - date) + 1, .after = id) %>%
+  count(id) %>%
+  ggplot(aes(x = n)) + 
+  geom_histogram(fill = "#00bfc4") +
+  scale_x_continuous(trans='log2', breaks=c(2, 4, 8, 16, 32, 64, 128, 256)) + 
+  theme_light() + 
+  xlab("Number of tweets per person (log scale)") + 
+  ylab("Participant count")
+
+```
+
+### Temporal patterns
+
+Next, I will consider how sentiment has changed from January to October 2020 and split this by three different features of the data.
+These are the sex of participants in Figure \@ref(fig:sex-time), the generation of the participants in Figure \@ref(fig:gen-time) and then whether the tweet was a retweet or not in Figure \@ref(fig:retweets-time). 
+VADER was chosen for these summaries as previous research has suggested that it outperforms other sentiment algorithms as an overall summary of sentiment for social media length text [@ribeiro2016sentibench].
+
+
+```{r sex-time, dpi = 360, fig.height=4, fig.width=9, fig.cap="In the top figure, VADER compound is split by sex and plotted between 1st January 2020 and 31st Octover 2020. In the lower figure, the total number of daily tweets is plotted, with the contribution of each sex group differentiated by color and stacked on top of each other.", out.width="100%"}
+
+p1 <- twitter %>%
+  left_join(., (surveys %>% select("id", "generation" ,"sex")),
+              by="id") %>%
+  drop_na(sex) %>%
+  filter(date > dmy("01-01-2020")) %>%
+  select(date, sex, contains("vader")) %>%
+  group_by(date, sex) %>%
+  summarise(across(everything(), list(
+    mean = mean,
+    count = ~ sum(!is.na(.x))
+  ),
+  .names = "{.col}.{.fn}")) %>%
+  ungroup() %>%
+  # Make a plot of this
+  ggplot(aes(x = date, y = vader_compound.mean, color = sex)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(span=0.15) + # span is the smoothness parameter. 
+  theme_minimal() +
+  ylab("VADER compound score\n") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank()) +
+  labs(color = "Sex") + 
+  xlab("")
+
+p2 <- twitter %>%
+  left_join(., (surveys %>% select("id", "generation","sex")),
+              by="id") %>%
+  drop_na(sex) %>%
+  filter(date > dmy("01-01-2020")) %>%
+  count(date, sex) %>%
+  ungroup() %>%
+  ggplot(aes(x = date, y = n, fill = sex)) + 
+  geom_area(method = "loess") + 
+  theme_minimal() +
+  xlab("") +
+  ylab("Daily Count\n") + 
+  # Increase tick marks
+  scale_x_date(breaks = scales::breaks_pretty(20)) + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) + 
+  labs(fill = "Sex")
+
+# Arrange the two plots on the same graph so you can consider them side by side. 
+ggarrange(p1, p2, ncol=1, nrow=2, heights=c(5, 3), common.legend = TRUE, legend = "bottom")
+rm(p1, p2)
+```
+
+In general the sentiment of women's tweets is higher than men's across time.
+This difference appears to be between 0.05-0.1 units of VADER compound sentiment over time, which is fairly large considering that VADER compound is measured between -1 and 1 overall. 
+
+```{r gen-time, dpi = 360, fig.height=4, fig.width=9, fig.cap="In the top figure, VADER compound is split by generation and plotted between 1st January 2020 and 31st Octover 2020. In the lower figure, the total number of daily tweets is plotted, with the contribution of each generational group differentiated by color and stacked on top of each other.", out.width="100%"}
+
+p1 <- twitter %>%
+  left_join(., (surveys %>% select("id", "sex")),
+              by="id") %>%
+  filter(date > dmy("01-01-2020")) %>%
+  drop_na(generation) %>%
+  select(date, generation, contains("vader")) %>%
+  group_by(date, generation) %>%
+  summarise(across(everything(), list(
+    mean = mean,
+    count = ~ sum(!is.na(.x))
+  ),
+  .names = "{.col}.{.fn}")) %>%
+  ungroup() %>%
+  # Make a plot of this
+  ggplot(aes(x = date, y = vader_compound.mean, color = generation)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(span=0.15) + # span is the smoothness parameter. 
+  theme_minimal() +
+  ylab("VADER compound score\n") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank()) +
+  labs(color = "Generation") + 
+  xlab("")
+
+p2 <- twitter %>%
+  left_join(., (surveys %>% select("id","sex")),
+              by="id") %>%
+  filter(date > dmy("01-01-2020")) %>%
+  count(date, generation) %>%
+  ungroup() %>%
+  ggplot(aes(x = date, y = n, fill = generation)) + 
+  geom_area(method = "loess") + 
+  theme_minimal() +
+  xlab("") +
+  ylab("Daily Count\n") + 
+  # Increase tick marks
+  scale_x_date(breaks = scales::breaks_pretty(20)) + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) + 
+  labs(fill = "Generation")
+
+# Arrange the two plots on the same graph so you can consider them side by side. 
+ggarrange(p1, p2, ncol=1, nrow=2, heights=c(5, 3), common.legend = TRUE, legend = "bottom")
+rm(p1, p2)
+```
+Whilst the difference between the G0 and G1 cohorts does not appear to be large, differences in their patterns of sentiment relate more to timing. 
+G1 participants saw a steeper and slightly deeper dip in sentiment at the beginning of the COVID-19 pandemic, as well as a large increase in tweet frequency that is not as pronounced in the G0 participants. 
+The dip in sentiment for the G0 participants is more gradual and the negative peak appears about 3 weeks later than the G1s, though it is not as negative.
+
+```{r retweets-time, dpi = 360, fig.height=4, fig.width=9, fig.cap="In the top figure, VADER compound is split by whether or not a tweet is a retweet and plotted between 1st January 2020 and 31st Octover 2020. In the lower figure, the total number of daily tweets is plotted, with the contribution of retweets and original tweets differentiated by color and stacked on top of each other.", out.width="100%"}
+p1 <- twitter %>%
+  filter(date > dmy("01-01-2020")) %>%
+  select(date, retweet, contains("vader")) %>%
+  group_by(date, retweet) %>%
+  summarise(across(everything(), list(
+    mean = mean,
+    count = ~ sum(!is.na(.x))
+  ),
+  .names = "{.col}.{.fn}")) %>%
+  ungroup() %>%
+  # Make a plot of this
+  ggplot(aes(x = date, y = vader_compound.mean, color = retweet)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(span=0.15) + # span is the smoothness parameter. 
+  theme_minimal() +
+  ylab("VADER compound score\n") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank()) +
+  labs(color = "Retweets") + 
+  xlab("")
+
+p2 <- twitter %>%
+  filter(date > dmy("01-01-2020")) %>%
+  count(date, retweet) %>%
+  ungroup() %>%
+  ggplot(aes(x = date, y = n, fill = retweet)) + 
+  geom_area(method = "loess") + 
+  theme_minimal() +
+  xlab("") +
+  ylab("Daily Count\n") + 
+  # Increase tick marks
+  scale_x_date(breaks = scales::breaks_pretty(20)) + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) + 
+  labs(fill = "Retweets")
+
+# Arrange the two plots on the same graph so you can consider them side by side. 
+ggarrange(p1, p2, ncol=1, nrow=2, heights=c(5, 3), common.legend = TRUE, legend = "bottom")
+
+rm(p1, p2)
+
+```
+
+Lastly we can consider the proportion of retweets versus original tweets over time. 
+In Figure \@ref(fig:retweets-time) we can see that original tweets are generally more positive than retweets, apart from a short period of time in mid-late March 2020. 
+Across all of the timeseries plots of VADER compound we can see that there was a noticeable dip in overall sentiment in early June 2020. 
+This time period corresponds with several important events including the phased re-opening of schools in England following the coronavirus lockdown, and the Black Lives Matter protests across the UK. 
+
+Another temporal perspective on overall sentiment scores is throughout the day.
+Twitter data provided on the ALSPAC participants is mapped to four hour windows, and so in Figure \@ref(fig:vader-byhour) we can see the average sentiment at each four hour window in each month throughout the year.
+Overall daily sentiment starts low just after midnight (though still within VADER's 'neutral' window of $\pm$ 0.05), and is highest during the middle of the day, before dropping again in the evening. The only notable exception is for December where the 04:00-7:59 time point is much higher than all the others, which is likely to be due to people posting 'Happy Christmas' messages on Christmas morning. 
+There are no obvious patterns in the differences between summer and winter.
+
+```{r vader-byhour, dpi=300, fig.width=9, fig.height=6, fig.cap="VADER compound across the day over 12 months. Warmer months are coloured towards yellow, and colder months towards blue.", out.width="100%"}
+
+mnths <- c("Nov 19", "Dec 19", "Jan 20", "Feb 20", "Mar 20", "Apr 20", "May 20", "Jun 20", "Jul 20", "Aug 20", "Sept 20", "Oct 20")
+
+byhr_dat <- twitter %>% 
+  filter(date > dmy("31-10-2019")) %>%
+  filter(time_4hrs != "small_cell") %>%
+  select(mnth_yr, time_4hrs, vader_compound) %>%
+  group_by(mnth_yr, time_4hrs) %>%
+  summarise(vader_compound = mean(vader_compound)) %>%
+  ungroup() %>%
+  mutate(mnth_yr = lubridate::ymd(paste0(mnth_yr, "-01")),
+         mnth_yr = factor(format(mnth_yr, "%b %y"), levels = mnths)) %>%
+  filter(!is.na(mnth_yr))
+
+byhr_dat %>%
+  ggplot(aes(x = time_4hrs, y = vader_compound, group = mnth_yr)) + 
+  theme_minimal() +
+  geom_point(aes(color = mnth_yr), alpha = 0.8) + 
+  geom_line(aes(color = mnth_yr)) + 
+  xlab("\nDaily Time Window") + 
+  ylab("Monthly VADER compound mean\n") + 
+  labs(color = "Month Year") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+        legend.position = "none") +
+            #legend.title = element_text(size = 10), 
+            #legend.text = element_text(size = 10)) + 
+  scale_colour_manual(values=c(
+"#003f5c",
+"#374c80",
+"#444e86",
+"#955196",
+"#dd5182",
+"#ff6e54",
+"#ff8e24",
+"#ffa600",
+"#ff6e54",
+"#dd5182",
+"#955196",
+"#444e86",
+"#003f5c")) + 
+  geom_label_repel(
+#    data = byhr_dat %>% filter(time_4hrs == "00:00-3:59"),
+    data = byhr_dat %>% filter(time_4hrs == "20:00-23:59"),
+      aes(label = mnth_yr),
+                  nudge_x = 1,
+                  hjust = 1,
+                  na.rm = TRUE)
+
+rm(byhr_dat)
+
+```
+
+Having considered sentiment as an overall outcome we can also look at the categories of the LIWC and how these change over time. 
+As noted in Section \@ref(methodsliwc) LIWC categories extend beyond sentiment to include areas like parts of speech and topics. Figure \@ref(fig:liwc-ranks) is a visual summary of how each of the top ten occurring LIWC categories change over time, based on their mean value across all tweets each month. The LIWC category 'function' is omitted because it is consistently much higher than all of the other values at approximately 0.28. 
+
+```{r liwc-ranks, dpi = 360, fig.width=9, fig.height=4, fig.cap="The ten most common LIWC values over 12 months (without 'function' which has a mean of approximately 0.28)", out.width="100%"}
+
+top10monthly <- twitter %>% select(date, mnth_yr, contains("liwc")) %>%
+    filter(date > dmy("31-10-2019")) %>%
+    group_by(mnth_yr) %>%
+    summarise(across(everything(), mean)) %>%
+    ungroup() %>%
+    pivot_longer(cols = contains("liwc"), names_prefix = "liwc_", names_to = "category", values_to = "value") %>%
+    arrange(desc(value)) %>% 
+    group_by(mnth_yr) %>% 
+    # Get rid of 'function' - it's too high to plot relative to everything else.   
+    slice(2:10)
+
+ggplot(data = top10monthly, aes(x = mnth_yr, y = value, group = category)) +
+  geom_line(aes(color = category)) +
+  geom_point(aes(color = category)) + 
+  scale_color_manual(values = c('#8dd3c7','#ffffb3','#bebada','#fb8072','#80b1d3','#fdb462','#b3de69','#fccde5','#d9d9d9','#bc80bd')) +
+  labs(color="LIWC Category",
+       x = "\nMonth-Year",
+        y = "Mean LIWC percentage\n") + 
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+    legend.title = element_text(size = 10), 
+    legend.text = element_text(size = 10))
+
+rm(top10monthly)
+```
+\clearpage
+
+## Results
+
+### How well do patterns of life and codings of emotion predict mental health? 
+
+This first research question considers the overall positive and negative codings generated by the *LabMT* happiness scale and *VADER*, as well as the *Affective Process* dimensions of the LIWC and patterns of life (PoL). 
+Each of these outcomes was tested against depression, anxiety and general well-being using a linear model, with depression and anxiety transformed using the natural log. 
+Models were also adjusted for sex and generation. 
+Figure \@ref(fig:lmsummary) presents the magnitude of each outcome as the percentage of the variance explained after sex and generation were accounted for. 
+This metric was chosen to maximise the opportunity for comparison between different types of features and between different mental health outcomes. 
+
+The clearest association is between anxiety and the mean of *VADER positive*. 
+This is also the only association with a p-value beneath the bonferroni adjusted threshold. 
+In fact, anxiety is generally best explained by more of the features shown that depression or general well-being are. 
+The associations of all outcomes and variables are in the directions that would be expected, that is that increasing negative sentiment variables are associated with an increase in poorer mental health and the opposite for positive variables. 
+
+The equivalent results are available in Supplementary Table \@ref(tab:sentall) for the data not aggregated by individual, and illustrates that when using the disaggregated data some variables showed the opposite direction of effect, although their p-values are above 0.05. For example, *LIWC Positive Emotion* was positively associated with increased depressive symptoms, as was *VADER Positive*.
+
+```{r makelms}
+
+# Generate all possible combinations of universes based on input parameters (=1224 universe specs)
+specs_t1 <- list(
+    window_len = c(2, 4, 6, 8, 12),    # Define every number of weeks between 2 and 52 in 'windows'
+    wave = 1,     # Survey wave/time point
+    weight = c(
+        1,
+        quote(0.5 + (0.5) / (1 + (day / (
+            max(day) / 2
+        )) ^ 3)),
+        quote((1 - day / max(day)) + 1 / max(day)),
+        quote(1 / day),
+        quote(1 / sqrt(day))
+    ),
+    # Weighting of the historical tweets
+    mh_varb = c("mfq", "gad", "wemwbs") # Mental health outcome
+) %>% cross_df()
+
+specs_t2 <- list(
+    window_len = c(2, 4, 6, 8, 12),    # Number of weeks for the windows
+    wave = 2,    # Survey wave/time point
+    weight = c(
+        1,
+        quote(0.5 + (0.5) / (1 + (day / (
+            max(day) / 2
+        )) ^ 3)),
+        quote((1 - day / max(day)) + 1 / max(day)),
+        quote(1 / day),
+        quote(1 / sqrt(day))
+    ),
+    # Weighting of the historical tweets
+    mh_varb = c("mfq", "gad", "wemwbs") # Mental health outcome
+) %>% cross_df()
+
+# Build the datasets needed for each time point
+datasets_t1 <- build_datasets(twitter = twitter, surveys = surveys, ids = t1_ids, specs = specs_t1) %>%
+  mutate(n.tweets01 = range01(n.tweets))
+datasets_t2 <- build_datasets(twitter = twitter, surveys = surveys, ids = t2_ids, specs = specs_t2) %>%
+  mutate(n.tweets01 = range01(n.tweets))
+
+# Set up outcomevarbs -  these are all the sentiment variables and pattern of life variables we want to model
+outcomevarbs <- datasets_t1 %>% select(-contains("spec"), 
+                                       -contains("COVID"), 
+                                       -c(id, sex, generation, ethnicity_yp)) %>% colnames
+
+# Make all of the models. sent_models is a function in functions/sentiment/functions.R file
+dep_mods_grp <- sent_models("COVID1_mfq_cont", varbs = outcomevarbs, 
+                            data = datasets_t1 %>% filter(window_len_spec == 2) %>% filter(weight_spec == 1))
+anx_mods_grp <- sent_models("COVID1_gad_cont", varbs = outcomevarbs, 
+                            data = datasets_t1 %>% filter(window_len_spec == 2) %>% filter(weight_spec == 1))
+wb_mods_grp <- sent_models("COVID1_wemwbs_cont", varbs = outcomevarbs, 
+                           data = datasets_t1 %>% filter(window_len_spec == 2) %>% filter(weight_spec == 1))
+# Put together all the results of the models
+lms <- list("depression" = dep_mods_grp, "anxiety" = anx_mods_grp, "well-being" = wb_mods_grp)
+lms <- dplyr::bind_rows(lms, .id = 'id')
+
+rm(dep_mods_grp, anx_mods_grp, wb_mods_grp, outcomevarbs)
+
+```
+
+
+```{r lmsummary, out.width = "100%", fig.cap="The results of regression models of each sentiment variable against depression, anxiety and general well-being, adjusted for sex and generation. The percentage variance explained after sex and generation have been accounted for is given by the size of each point, the sign of the coefficient is given by the colour, and the p-value is represented by the transparency of the point.", fig.width=9, fig.height=9}
+
+sent_rename_dat <- read.csv(here("index", "data", "sentiment", "sent_rename.csv"), header = TRUE)
+
+feelings <- c("liwc_affect.mean", "liwc_posemo.mean", "liwc_negemo.mean", "liwc_anx.mean", 
+              "liwc_anger.mean", "liwc_sad.mean", 
+              "vader_negative.mean", "vader_neutral.mean", "vader_positive.mean", "vader_compound.mean", 
+              "labmt_emotion_valence.mean",
+              "liwc_affect.var", "liwc_posemo.var", "liwc_negemo.var", "liwc_anx.var", 
+              "liwc_anger.var", "liwc_sad.var", 
+              "vader_negative.var", "vader_neutral.var", "vader_positive.var", "vader_compound.var", 
+              "labmt_emotion_valence.var")
+
+# Patterns of Life features
+pol <- c("n.tweets", "retweet.prop", "night.prop", "time_num.mean", "time_num.var")
+
+lms %>% 
+    filter(sentiment_varb %in% c(feelings, pol)) %>%
+    select(id, sentiment_varb, p.value_sentiment_varb, estimate_sentiment_varb, sent_varexp) %>%
+    left_join(., sent_rename_dat, by = c("sentiment_varb" = "old.name")) %>%
+    # Make a varb for the sign of the estimate
+    mutate(sign = factor(sign(estimate_sentiment_varb))) %>%
+    mutate(sign = recode(sign, "1" = "+", "-1" = "-")) %>%
+    mutate(id = recode(id, 
+                             "depression"= "Depression", "anxiety" = "Anxiety", 
+                             "well-being" = "Well-being")) %>%
+    ggplot(aes(y=name, x = id)) +
+    # Create the circle outlines first
+    geom_point(aes(size = sent_varexp*1.1), shape = 21, colour = "black", fill = "white", stroke = 0.5) +
+    # Then add the circle fill
+    geom_point(aes(size = sent_varexp,  # Size is the variance explained
+                   alpha = p.value_sentiment_varb,  # Alpha is the p-value
+                   colour = sign # Fill colour is the sign of the coefficient
+                   )) +
+    scale_alpha_continuous(range = c(1,0), breaks = c(0.05,0.01,0.001), trans = "log") + 
+    facet_grid(group~.,scales='free', space = "free_y") +
+    xlab("") + 
+    ylab("") +
+    theme_light() + 
+    theme(legend.position="bottom",
+           legend.box = 'vertical',
+           legend.margin = margin(-5, 0, 0, 0)) + 
+    labs(size="Pct. Variance explained", colour="Direction of effect", alpha = "p-value")
+
+rm(feelings, pol)
+
+```
+
+\clearpage
+
+### Is prediction improved by using a larger number of linguistic categories?
+
+Now I consider the results of only looking at the most successful sentiment features for each of the mental health outcomes. 
+I took variables with a p-value of less than 0.05 for their association with each mental health outcome, with Table \@ref(tab:lms-best) displaying these sorted by the percentage variance they explained in their individual models (after sex and generation are accounted for). 
+
+
+```{r lms-best}
+
+# Get all the variables for each of the outcomes that 
+#source(here("chap5-functions.R"))
+
+
+best_varbs <- lms %>% 
+    filter(p.value_sentiment_varb < 0.05) %>%
+    mutate(sign = factor(sign(estimate_sentiment_varb))) %>%
+    select(id, sentiment_varb, sign, sent_varexp, p.value_sentiment_varb) %>%
+    mutate(sign = recode(sign, "1" = "+", "-1" = "-")) %>%
+    group_by(id) %>%
+    arrange(desc(sent_varexp), .by_group = TRUE) %>%
+    ungroup() %>%
+    mutate(sent_varexp = round(sent_varexp, 2)) %>%
+    mutate(p.value_sentiment_varb = round(p.value_sentiment_varb, 3)) %>%
+    rename(
+        "Outcome" = "id",
+        "Variable" = "sentiment_varb",
+        "Effect" = "sign",
+        "Variance Explained" = "sent_varexp",
+        "p-value" = "p.value_sentiment_varb"
+    ) %>%
+  filter(Variable != "n.tweets01")
+
+# 11 rows for anxiety, 13 for depression, 12 for well-being
+
+best_varbs %>%
+    select(-Outcome) %>%
+    mutate(Variable = lapply(Variable, sent_rename)) %>%
+    kbl(booktabs = TRUE,
+        caption="This table displays the variance accounted for by each sentiment variable with p < 0.05 when regressed against depression, anxiety or well-being, and adjusting for sex and generation. The 'Effect' column gives the direction of the coefficient. p-values in orange are < 0.001 and those in teal are < 0.01.") %>%
+    kable_styling(position = "center", latex_options = c("striped")) %>%
+    pack_rows("Anxiety", 1, 11) %>%
+    pack_rows("Depression", 12, 24) %>%
+    pack_rows("Well-being", 25, 36) %>%
+    column_spec(4, color = case_when(
+                                 best_varbs$`p-value` < 0.001 ~ "orange",
+                                 best_varbs$`p-value` <= 0.01 ~ "teal",
+                                 best_varbs$`p-value` < 0.05 ~ "black"))
+```
+
+The pair-wise correlations between each of the sets of variables associated with depression, anxiety and general well-being are illustrated by correlation plots in the Appendix, in Figures \@ref(fig:dep-varbs-corr), \@ref(fig:anx-varbs-corr) and \@ref(fig:wb-varbs-corr) respectively.
+Each associated set of variables were then used as dependent variables to model depression, anxiety and general well-being using a linear multiple regression model for each.
+The results for each of the outcomes is given in the following sub-sections.
+
+Note that depression and anxiety were both log transformed using the natural logarithm.
+This decision was made to better meet the assumptions of the linear regression, most specifically the normality of the residuals. 
+Number of tweets was also min-max scaled to the range of zero to one for better interpretability against the other coefficients. 
+
+```{r bestvarbs}
+
+# best_varbs %>% filter(Outcome == "depression") %>% pull(Variable) %>% dput()
+dep_vars <- c("liwc_verb.mean", "liwc_verb.var", "n.tweets", "vader_positive.mean", 
+"liwc_leisure.mean", "liwc_quant.var", "liwc_they.var", "vader_negative.var", 
+"liwc_female.mean", "liwc_female.var", "vader_negative.mean", 
+"liwc_focuspast.mean", "liwc_body.mean")
+
+# best_varbs %>% filter(Outcome == "anxiety") %>% pull(Variable) %>% dput()
+anx_vars <- c("vader_positive.mean", "vader_compound.mean", "vader_neutral.mean", 
+"liwc_leisure.mean", "labmt_emotion_valence.mean", "liwc_body.mean", 
+"liwc_health.var", "liwc_quant.var", "liwc_health.mean", "n.tweets", 
+"liwc_friend.mean")
+
+# best_varbs %>% filter(Outcome == "well-being") %>% pull(Variable) %>% dput()
+wb_vars <- c("liwc_verb.var", "liwc_verb.mean", "liwc_money.var", "vader_negative.var", 
+"liwc_home.var", "n.tweets", "liwc_relativ.var", "liwc_focuspast.mean", 
+"liwc_health.mean", "liwc_time.var", "liwc_sexual.mean", "liwc_shehe.var")
+```
+
+\clearpage
+#### Depression
+
+In the depression linear model, *LIWC female* mean and variance had high variance inflation factors and so the variance was removed from the model, since the mean accounted for more variance overall. 
+As such the theoretical model for depression was:
+
+```{r deplm}
+
+# Run the main regression model
+deplm <- lm(log(Depression_Survey1 + 1) ~ liwc_verb.mean + liwc_verb.var + n.tweets01 + vader_positive.mean +
+  liwc_leisure.mean + liwc_quant.var + liwc_they.var + vader_negative.var +  
+  liwc_female.mean + vader_negative.mean +  
+  liwc_focuspast.mean + liwc_body.mean,
+            data = datasets_t1 %>% filter(window_len_spec == 2) %>% filter(weight_spec == 1) %>% rename("Depression_Survey1" = "COVID1_mfq_cont"))
+
+
+# Also run the k-fold cross validation 
+set.seed(123)
+train.control <- trainControl(method = "repeatedcv", 
+                              number = 5, repeats = 10)
+# Train the model
+deplmcv <- train(log(COVID1_mfq_cont + 1) ~ 
+                    liwc_verb.mean + liwc_verb.var + n.tweets01 + vader_positive.mean +
+                    liwc_leisure.mean + liwc_quant.var + liwc_they.var + vader_negative.var +  
+                    liwc_female.mean + vader_negative.mean +  
+                    liwc_focuspast.mean + liwc_body.mean,
+            data = datasets_t1 %>% filter(window_len_spec == 2) %>% filter(weight_spec == 1) %>% drop_na(COVID1_mfq_cont), 
+            method = "lm",
+            trControl = train.control)
+
+```
+
+```{r deplm-eq, results = "asis"}
+# Display the theoretical equation for this model
+equatiomatic::extract_eq(deplm, wrap = TRUE, terms_per_line = 2)
+```
+
+Table \@ref(tab:deplm-results) gives the results for this model.
+It shows that less variance in the use of *They* pronouns was associated with increased depressive symptoms, and more use of words relating to *Body* was also positively associated with increased symptoms.
+
+Repeated 5-fold cross-validation (10 repeats) was also used to obtain a more robust estimate of the model's error, which found that the mean $R^2$ was `r round(deplmcv$results$Rsquared, 3)` (SD = `r round(deplmcv$results$RsquaredSD, 3)`), and the mean RMSE was `r round(deplmcv$results$RMSE, 3)` (SD = `r round(deplmcv$results$RMSESD, 3)`).
+
+```{r deplm-results}
+
+# Use Performance library to check the model assumptions
+# performance::check_model(deplm)
+
+deplm_tbl <- tbl_regression(deplm)
+# Change the label names for a nice table
+for (label in deplm_tbl$table_body$label){
+  deplm_tbl$table_body$label[label] <- sent_rename_many(deplm_tbl$table_body$label[label])
+}  
+
+deplm_tbl %>%
+  add_glance_table(
+    include = c(r.squared, adj.r.squared, p.value, nobs)
+  ) %>%
+  as_kable_extra(booktabs=TRUE, 
+                 caption = "Summary of the linear model of the 11 chosen sentiment variables and number of tweets against depression measured at Survey 1. The lower half of the table gives summary information for the model overall.") %>%
+  kable_styling(latex_options = c("striped", "hold_position"))
+
+rm(deplm_tbl)
+```
+
+\clearpage
+#### Anxiety
+
+For the anxiety linear model *VADER Neutral* (mean) and *VADER Compound* (mean) were removed in favour of keeping *VADER Positive* due to high multicollinearity and the fact that *VADER positive* accounted for the highest variance of the three.
+
+```{r anxlm}
+
+anxlm <- lm(log(Anxiety_Survey1 + 1) ~ vader_positive.mean + liwc_leisure.mean +   
+              labmt_emotion_valence.mean +  liwc_body.mean + liwc_health.var + 
+              liwc_quant.var + liwc_health.mean + 
+              n.tweets01 + liwc_friend.mean, 
+            data = datasets_t1 %>% filter(window_len_spec == 2) %>% filter(weight_spec == 1) %>% rename("Anxiety_Survey1" = "COVID1_gad_cont"))
+
+# Use Performance library to check the model assumptions
+# performance::check_model(anxlm)
+
+# Also run the kfold cross validation.
+# Train the model
+anxlmcv <- train(log(COVID1_gad_cont + 1) ~ vader_positive.mean + liwc_leisure.mean +   
+              labmt_emotion_valence.mean +  liwc_body.mean + liwc_health.var + 
+              liwc_quant.var + liwc_health.mean + 
+              n.tweets01 + liwc_friend.mean,
+            data = datasets_t1 %>% filter(window_len_spec == 2) %>% filter(weight_spec == 1) %>% drop_na(COVID1_gad_cont), 
+            method = "lm",
+            trControl = train.control)
+```
+
+As such the theoretical model for anxiety was:
+
+```{r anxlm-eq, results = "asis"}
+# Display the theoretical equation for this model
+equatiomatic::extract_eq(anxlm, wrap = TRUE, terms_per_line = 2)
+```
+
+The results of the model in Table \@ref(tab:anxlm-results) show that anxiety was associated with increased use of words relating to the *Body* category, and that this was the only variable in the model with a p-value < 0.05. 
+Fewer words in the categories of *Leisure*, *Health*, and *Friend* were also associated with anxiety, as well as less variance in the mention of *Health* and more variation in the *Quant* category. 
+*Quant* includes words that are quantifiers such as 'lots' or 'little'.
+
+Repeated 5-fold cross-validation (10 repeats) found that the mean $R^2$ was `r round(anxlmcv$results$Rsquared, 3)` (SD = `r round(anxlmcv$results$RsquaredSD, 3)`), and the mean RMSE was `r round(anxlmcv$results$RMSE, 3)` (SD = `r round(anxlmcv$results$RMSESD, 3)`).
+
+```{r anxlm-results}
+anxlm_tbl <- tbl_regression(anxlm)
+
+# Change the label names for a nice table
+for (label in anxlm_tbl$table_body$label){
+  anxlm_tbl$table_body$label[label] <- sent_rename_many(anxlm_tbl$table_body$label[label])
+}  
+
+anxlm_tbl %>%
+  add_glance_table(
+    include = c(r.squared, adj.r.squared, p.value, nobs)
+  ) %>%
+  as_kable_extra(booktabs=TRUE, 
+                 caption = "Summary of the linear model of the 8 chosen sentiment variables and number of tweets against anxiety measured at Survey 1. The lower half of the table gives summary information for the model overall.") %>%
+  kable_styling(latex_options = c("striped", "hold_position"))
+
+rm(anxlm_tbl)
+```
+
+\clearpage
+#### General Well-being
+
+Lastly the same approach was used for estimating general well-being. 
+Here, no variables were removed from the model due to multicollinearity.
+The theoretical model for general well-being was:
+
+```{r wb-lm}
+
+wblm <- lm(Wellbeing_Survey1 ~ liwc_verb.var + liwc_verb.mean + liwc_money.var + vader_negative.var + liwc_home.var + n.tweets01 + liwc_relativ.var + liwc_focuspast.mean + liwc_health.mean + liwc_time.var + liwc_sexual.mean + liwc_shehe.var,
+           data = datasets_t1 %>% filter(window_len_spec == 2) %>% filter(weight_spec == 1) %>% rename("Wellbeing_Survey1" = "COVID1_wemwbs_cont"))
+
+# Use Performance library to check the model assumptions
+# performance::check_model(wblm)
+
+# Also run the kfold cross validation.
+# Train the model
+wblmcv <- train(COVID1_wemwbs_cont ~ liwc_verb.var + liwc_verb.mean + liwc_money.var + vader_negative.var + 
+                   liwc_home.var + n.tweets01 + liwc_relativ.var + liwc_focuspast.mean + liwc_health.mean + 
+                   liwc_time.var + liwc_sexual.mean + liwc_shehe.var,
+            data = datasets_t1 %>% filter(window_len_spec == 2) %>% filter(weight_spec == 1) %>% drop_na(COVID1_wemwbs_cont), 
+            method = "lm",
+            trControl = train.control)
+```
+
+```{r wblm-eq, results = "asis"}
+# Display the theoretical equation for this model
+equatiomatic::extract_eq(wblm, wrap = TRUE, terms_per_line = 2)
+```
+
+```{r wblm-results}
+wblm_tbl <- tbl_regression(wblm)
+
+# Change the label names for a nice table
+for (label in wblm_tbl$table_body$label){
+  wblm_tbl$table_body$label[label] <- sent_rename_many(wblm_tbl$table_body$label[label])
+}  
+
+wblm_tbl %>%
+  add_glance_table(
+    include = c(r.squared, adj.r.squared, p.value, nobs)
+  ) %>%
+  as_kable_extra(booktabs=TRUE, 
+                 caption = "Summary of the linear model of the 11 chosen sentiment variables and number of tweets against general well-being measured at Survey 1. The lower half of the table gives summary information for the model overall.") %>%
+  kable_styling(latex_options = c("striped", "hold_position"))
+
+rm(wblm_tbl)
+```
+
+In the results of the general well-being model in Table \@ref(tab:wblm-results) increased variance in the discussion of *Money* related terms was associated with a decrease in well-being, as was increased variance in the discussion of LIWC *Relativity* terms. 
+Relativity refers to words describing how one thing relates to another and contains terms such as 'down' or 'earlier'. 
+The mean of *Health* related words was associated with increased well-being, and *Sexual* related words was associated with decreased well-being. 
+
+Repeated 5-fold cross-validation (10 repeats) was again used to get a more robust estimate of the model's error, which found that the mean $R^2$ was `r round(wblmcv$results$Rsquared, 3)` (SD = `r round(wblmcv$results$RsquaredSD, 3)`), and the mean RMSE was `r round(wblmcv$results$RMSE, 3)` (SD = `r round(wblmcv$results$RMSESD, 3)`).
+
+\clearpage
+
+### What is the effect of changing the window and weightings of data?
+
+```{r allopts-setup}
+
+# run_specs runs all of the specifications contained in the `specs' dataframe argument 
+# for the datasets provided in the `datasets` argument and returns the R Squared value for each of them. 
+# all_mods then holds these responses so that we can plot them. 
+
+all_mods <- run_specs(specs = specs_t1, datasets = datasets_t1)
+
+```
+
+```{r allopts, fig.cap="The mean R Squared value obtained from 10 x 5-fold cross validation plotted for the outcomes of depression, anxiety and well-being. The input data contains an increasing number of weeks for each graph from left to right, and within each graph the y-axis represents the different weighting functions used on that number of weeks of data.", out.width="100%", fig.width=9, fig.height=8}
+
+# Set up a fill code for them 
+decay_fillScale <- scale_fill_manual(
+  name = "Function",
+  values = c(
+    "None"="#A6D854",
+    "1" = "#66C2A5",
+    "2" = "#FC8D62",
+    "3" = "#E78AC3",
+    "4" = "#8DA0CB"
+  )
+)
+
+all_mods %>%
+  # Rename some of the variables to prepare them for plotting
+  mutate(weight = fct_recode(as.character(weight), !!!weights_rename),
+         weight = fct_relevel(weight, "None", "1", "2", "3", "4")) %>%
+  mutate(mh_varb = fct_recode(mh_varb, "Depression" = "mfq", "Anxiety" = "gad", "Well-being" = "wemwbs"),
+         mh_varb = fct_relevel(mh_varb, "Depression", "Anxiety", "Well-being")) %>%
+  mutate(window_len = paste0(window_len, " weeks"),
+         window_len = factor(window_len, levels = c("2 weeks", "4 weeks", "6 weeks", "8 weeks", "12 weeks"))) %>%
+  # Add a median calculation for a line on the plot
+  group_by(mh_varb, window_len) %>%
+  mutate(mean_rsq = median(rsq)) %>%
+  ungroup() %>%
+  # Make the plot
+  ggplot(., aes(x = weight, y = rsq)) +
+  geom_bar(aes(fill = weight), stat = "identity") +
+  geom_hline(aes(yintercept=mean_rsq), linetype = "dashed", colour = "grey") +
+  facet_grid(cols = vars(window_len), rows = vars(mh_varb)) +
+  xlab("\nDecay functions") +
+  ylab("Mean R Squared\n") +
+  theme_light() +
+  theme(legend.position = "None") + 
+  decay_fillScale
+
+```
+
+Here we tested the impact of changing the window of Twitter data by two weekly intervals between two and twelve weeks. 
+For each week I also tested the impact of weighting the continuous variables by decay functions \@ref(eq:1) to \@ref(eq:4), as well as using no decay at all. 
+The models were run using the 151 participants from the Survey 1 time point, with Survey 1 as the source of mental health ground truth for depression, anxiety and general well-being. 
+Each model's $R^2$ value is the mean of ten repetitions of 5-fold cross validation. 
+
+Overall, not weighting the data at all appears to be the most effective use of the data (represented by the 'None' option in bright green in Figure \@ref(fig:allopts)). 
+However, we can see that anxiety is generally less effective as the time window increases, with longer windows preferring weightings that emphasise the contribution of the data closest to the measurement time point. 
+Focussing on the unweighted results, depression starts reasonably high, reduces but then starts to climb again at 4 weeks and peaks at 12 weeks. 
+General well-being tends to increase up to 8 weeks, and then reduces again.
+It is worth noting that the 4 to 12 week period for this data would have included the start of the COVID-19 pandemic. 
+
+
+### How do predictions perform over time?
+
+Given Figure \@ref(fig:allopts) the next step was to use the models to see how well these predict outcomes at a future time point. 
+For comparability, I continue to use the models trained on two weeks of unweighted data.
+
+#### Analysis of residual error at Survey 2
+
+```{r predictt2}
+# Make the predictions against the new data
+t2dat <- datasets_t2 %>% filter(window_len_spec == 2) %>% filter(weight_spec == 1)
+# Save the predictions against each person's row in the dataframe
+t2dat$dep_pred <- predict(deplm, newdata = t2dat)
+t2dat$anx_pred <- predict(anxlm, newdata = t2dat)
+t2dat$wb_pred <- predict(wblm, newdata = t2dat)
+
+# Now, tidy up t2dat because it has cols we don't need
+t2dat <- t2dat %>% 
+  select(id, n.tweets, retweet.prop, sex, generation, ethnicity_yp, contains("_cont"), contains("_pred")) %>%
+  # Make a column for prediction error
+  mutate(wb_err = wb_pred - COVID2_wemwbs_cont ) %>%
+  mutate(dep_err_trans =  (exp(dep_pred) - 1) - COVID2_mfq_cont) %>%
+  mutate(anx_err_trans =  (exp(anx_pred) - 1) - COVID2_gad_cont) %>%
+  mutate(dep_err =  dep_pred - log(COVID2_mfq_cont + 1)) %>%
+  mutate(anx_err =  anx_pred - log(COVID2_gad_cont + 1)) %>%
+  # Add a column to indicate whether person was in the training sample
+  mutate(in_t1 = if_else(id %in% t1_ids, TRUE, FALSE))
+
+```
+
+By predicting the values of the second survey it is possible to assess how the models perform at a future time point, as well as whether the future predictions are biased by any particular characteristics of the participants.
+These results are given in Table \@ref(tab:rmse)
+As can be seen in Figure \@ref(fig:residuals) in the appendix the residual error is roughly normally distributed, as so there does not appear to be any systematic under or over estimation. 
+The $R^2$ values for depression, anxiety and well-being at Survey 2 were 0.002, 0.002 and 0.0009 respectively. 
+
+```{r survey2rsq, eval = FALSE}
+
+# Can run this to check the values given above for the R squared at survey 2.
+
+postResample(pred = t2dat$dep_pred, obs = t2dat$COVID2_mfq_cont)
+postResample(pred = t2dat$anx_pred, obs = t2dat$COVID2_gad_cont)
+postResample(pred = t2dat$wb_pred, obs = t2dat$COVID2_wemwbs_cont)
+
+
+```
+
+To investigate whether any particular characteristics were associated with prediction bias I tested the difference in Root Mean Square Error (RMSE) between the groups of sex, generation and also whether or not the individual being predicted was in the original sample. 
+Ethnicity was not explored because it was only available for the G1 cohort which left only one participant in the 'Ethnic Minority Group' group. 
+The gap between completion of Survey 1 and Survey 2 is around a month on average.
+
+```{r rmse}
+
+# Overall RMSE for each of the trained models
+t1dep_rmse <- paste0(round(deplmcv$results$RMSE, 3), ", ", round(deplmcv$results$RMSESD, 3))
+t1anx_rmse <- paste0(round(anxlmcv$results$RMSE, 3), ", ", round(anxlmcv$results$RMSESD, 3))
+t1wb_rmse <- paste0(round(wblmcv$results$RMSE, 3), ", ", round(wblmcv$results$RMSESD, 3))
+
+# Overall RMSE for predictions at T2
+t2dep_rmse <- lm_rmse(t2dat$COVID2_mfq_cont, t2dat$dep_pred, log = TRUE)
+t2anx_rmse <- lm_rmse(t2dat$COVID2_gad_cont, t2dat$anx_pred, log = TRUE)
+t2wb_rmse <- lm_rmse(t2dat$COVID2_wemwbs_cont, t2dat$wb_pred)
+
+# RMSE by group predictions at T2
+sex_rmse <- get_t2rmse("sex", t2dat)
+gen_rmse <- get_t2rmse("generation", t2dat)
+eth_rmse <- get_t2rmse("ethnicity_yp", t2dat)
+t1_rmse <- get_t2rmse("in_t1", t2dat)
+
+# Pvalues 
+pred_pvals <- geterrpval(groups = list("sex", "generation", "ethnicity_yp", "in_t1"), data = t2dat)
+
+# Make this into a table!
+data.frame(
+  "Predictions"= c("Original Model (Mean, SD)", "All Survey 2", "Female", "Male", "p-value", 
+                   #"Ethnic Mintory Group", "White", "p-value",
+                   "G0", "G1", "p-value",
+                   "Yes", "No", "p-value"),
+  "Depression" = c(t1dep_rmse, t2dep_rmse, 
+                   sex_rmse$dep$`F`, sex_rmse$dep$M, pred_pvals$sex$dep,
+                   #eth_rmse$dep$`Ethnic Minority Group`, eth_rmse$dep$White, pred_pvals$ethnicity_yp$dep,
+                   gen_rmse$dep$G0, gen_rmse$dep$G1, pred_pvals$generation$dep,
+                   t1_rmse$dep$`TRUE`, t1_rmse$dep$`FALSE`, pred_pvals$in_t1$dep),
+  "Anxiety" = c(t1anx_rmse, t2anx_rmse, 
+                   sex_rmse$anx$`F`, sex_rmse$anx$M, pred_pvals$sex$anx,
+                   #eth_rmse$anx$`Ethnic Minority Group`, eth_rmse$anx$White, pred_pvals$ethnicity_yp$anx, 
+                   gen_rmse$anx$G0, gen_rmse$anx$G1, pred_pvals$generation$anx,
+                   t1_rmse$anx$`TRUE`, t1_rmse$anx$`FALSE`, pred_pvals$in_t1$anx),
+  "General Well-being" = c(t1wb_rmse, t2wb_rmse, 
+                   sex_rmse$wb$`F`, sex_rmse$wb$M, pred_pvals$sex$wb,
+                   #eth_rmse$wb$`Ethnic Minority Group`, eth_rmse$wb$White, pred_pvals$ethnicity_yp$wb, 
+                   gen_rmse$wb$G0, gen_rmse$wb$G1, pred_pvals$generation$wb,
+                   t1_rmse$wb$`TRUE`, t1_rmse$wb$`FALSE`, pred_pvals$in_t1$wb)
+) %>%
+  mutate(across(where(is.numeric), round, 2)) %>%
+  kable(., 
+        booktabs = TRUE,
+        caption = "Table containing the Root Mean Squared Error (RMSE) for each sub-group of those predicted at the second survey time point (Survey 2), using the model trained on data from Survey 1. The sub-groups include sex, generation and whether or not the individual being predicted was part of the original sample at Survey 1. P-values were calculated on the original errors using Welch's Test.",
+        col.names = c("Predictions", "Depression", "Anxiety", "General Well-being")) %>%
+  kable_styling(position = "center", latex_options = c("striped", "hold_position")) %>%
+  pack_rows("Sex", 3, 5) %>%
+  pack_rows("Generation", 6, 8) %>%
+  #pack_rows("Ethnicity", 6, 8) %>%
+  pack_rows("In training sample", 9, 11)
+  
+rm(t1dep_rmse, t1anx_rmse, t1wb_rmse, t2dep_rmse, t2anx_rmse, t2wb_rmse, sex_rmse, gen_rmse, eth_rmse, t1_rmse)
+```
+
+
+#### Predictions over time
+
+```{r pandemicpreds-setup, eval=FALSE}
+
+# Here we are
+
+start_date <- dmy("01/01/2020") + dweeks(2)
+end_date <- dmy("31/10/2020")
+
+date = start_date
+pandemic_fortnights <- list()
+
+while (date <= end_date-dweeks(2)) {
+  # Get the dataset for whatever the date is
+  pandemic_fortnights[[as.character(date)]] <- get_model_data2(
+    twitter=twitter, weight=1, end_date=date, window_len=2)
+  # Now, increment the date by 2 weeks
+  date <- date + dweeks(2)
+}
+
+dep_preds <- get_predictions(datalist = pandemic_fortnights, model = deplm) %>% mutate(Outcome = "Depression") 
+anx_preds <- get_predictions(datalist = pandemic_fortnights, model = anxlm) %>% mutate(Outcome = "Anxiety") 
+wb_preds <- get_predictions(datalist = pandemic_fortnights, model = wblm) %>% mutate(Outcome = "Well-being")
+
+rm(pandemic_fortnights, start_date, end_date)
+
+# This is not run because I have manually annotated the graph. 
+# However the graph without the annotations can be reproduced using this code.
+
+list(dep_preds, anx_preds, wb_preds) %>% 
+  reduce(bind_rows) %>%
+  select(-id) %>%
+  pivot_longer(cols = c(everything(), -Outcome), names_to = c("Week", "Type"), names_pattern = "(.*)_(.*)" , values_to = "Value") %>%
+  drop_na() %>%
+  group_by(Outcome, Week, Type) %>%
+  summarise(mean = mean(Value)) %>%
+  ungroup() %>%
+  pivot_wider(names_from = "Type", values_from = "mean") %>%
+  mutate(Outcome = as.factor(Outcome), 
+         Outcome = fct_relevel(Outcome, "Depression", "Anxiety", "Well-being")) %>%
+  mutate(Week = ymd(Week)) %>%
+  ggplot(aes(x=Week, y=pred, color = Outcome)) +
+  # Plot the prediction interval
+  geom_ribbon(aes(ymin = lwr, ymax = upr), fill = "grey70") +
+  # Plot the predictions
+  geom_line() + 
+  theme_minimal() +
+  scale_x_date(breaks = scales::breaks_pretty(20)) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+        legend.position = "none") +
+  facet_grid(rows = vars(Outcome), scales = "free") +
+  ylab("Mean of Prediction Per Fortnight\n") + 
+  xlab("\nDate") 
+
+# ggsave(
+#   "pandemicpred.svg",
+#   plot = last_plot(),
+#   width = 10,
+#   height = 5, dpi = 360)
+
+```
+
+Lastly, I used the trained model for each outcome to make predictions over time, and see how effective population models may be for this purpose. 
+To do this I took the models trained on two weeks of unweighted data at Survey 1 and applied them to two weekly intervals of data from the 1st January 2020 to the 31st October 2020. 
+The results of the predictions were averaged at each time point, and included any individuals who had tweeted in each two week window. 
+This was not restricted to a minimum number of tweets, or to those in the original samples for Survey 1 and 2. 
+The results of the mean predicted value at each fortnight is given in Figure \@ref(fig:pandemicpred) for each of depression, anxiety and general well-being. 
+The graph is annotated with important national events in England across time. 
+The same graph, but with prediction intervals included, is given in the Appendix in Figure \@ref(fig:pandemicpred-error).
+It shows that the prediction intervals are very wide, and that confidence in trends is likely to be low.
+
+
+\begin{landscape} 
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=1.2\textwidth]{figure/sentiment/pandemicpred-labelled.png} 
+  \caption{Each line illustrates the mean predicted values for depression, anxiety and general well-being as predicted by the linear models for each outcome. Predictions were made on data aggregated by individual over each two week period between the 1st January 2020 and 31st October 2020. The figure is annotated with key national events over the same time-period, particuarly those regarding the COVID-19 pandemic, with grey horizontal bars indicating the two-week prediction period that each event happened within.}
+  \label{fig:pandemicpred}
+\end{figure}
+\end{landscape}
+
+
+
+## Discussion
+
+This study used linked Twitter from two generations of a population cohort study to analyse how effective sentiment and pattern of life features were for inferring continuous measures of depression, anxiety and general well-being.
+
+By using cohort data this study makes a unique contribution to the literature by examining sentiment features against known ground truth data at two different time points. 
+Using this data also allowed for the analysis of potential demographic sources of bias in trained models, and to assess how well they performed on both within and outside sample predictions at a future time point. 
+
+Here I will discuss the results against each of the four original research questions, before discussing the overall implications of the study along with its limitations and suggested future directions. 
+
+### How well do patterns of life and codings of emotion predict mental health? {#c6results1}
+
+Overall most standard sentiment codings of sentiment or affective outcomes in the LIWC accounted for between 2-8% of the overall variance in each mental health outcome. 
+More variables accounted for variance in anxiety than depression or general well-being, with the association between *VADER Positive* and anxiety being the only association with a p-value that was under the bonferroni threshold. 
+Previous work predicting stress from Facebook data did also find an important negative association between positive sentiment and stress [@guntuku2019understanding].
+Here, pattern of life variables were relatively well associated with the outcome [@CoppersmithDredzeHarman_2015], with the number of tweets in particular accounting for the highest amount of variance out of the five variables tested across all three outcomes.
+There has been mixed success of pattern of life variables in previous research into depression [@reece2017forecasting, @CoppersmithDredzeHarman_2015].
+The variables related to the time of day of tweets were not as successful in this study as previous research suggested they might have been, with depression particularly thought to be associated with tweeting late at night [@DeChoudhuryCountsHorvitz_2013; @chen2018mood; @seabrook2018predicting]. 
+However, this effect may have been lost due to the summarisation of time-windows in the ALSPAC data, which leaves only the groups 8pm to midnight, midnight to 4am and 4am to 8am.
+As a result I restricted the night window to midnight to 4am (similarly to [@CoppersmithDredzeHarman_2015]), but previous research using the timings of 9pm to 6am found this variable to be a useful predictor [@DeChoudhuryCountsHorvitz_2013].
+Additionally, because there are likely to be fewer people tweeting in anti-social hours it is more likely that the detailed timing of these tweets was removed under ALSPAC statistical disclosure policy due to fewer than five tweets being made on that date and time. 
+Future users of ALSPAC twitter data may wish to derive a custom binary variable that represents tweets within antisocial hours of 9pm to 6am, and using 3-hour windows for the ALSPAC data may still give appropriate anonymity but provide more detail for researchers. 
+
+Previous studies had seen that at a population level life satisfaction and happiness were both negatively associated with *LIWC Positive Emotion* [@jaidka2020estimating] and that population self-rated mental health was negatively associated with *LabMT* and *VADER Compound* [@gibbons2019twitter], but these results were not replicated in this research. 
+I found that each of the standard sentiment codings were associated with each mental health outcome in the direction that would be expected.
+That is, that as depression and anxiety symptoms increase, the mean values of *LabMT*, *VADER Compound* and *LIWC Positive Emotion* decline. 
+The reverse direction of effect was found for general well-being, which is to be expected. 
+There is potential that since an increasing number of tweets was a predictor of poorer scores in all three mental health outcomes, over-representation of tweets from individuals who are more likely to have poorer mental health could skew the outcome data at a population-level. 
+This could be why we did not find the same direction of effect as other population level studies [@jaidka2020estimating; @gibbons2019twitter].
+Whilst the effects did not have p-values less than 0.05, we did see that when disaggregated data is used (Table \@ref(tab:sentall)) increased depression *was* positively correlated with increases in *LIWC Positive Emotion* and *VADER Positive*. 
+Improved general well-being was also associated with increased *LIWC Anxiety* words. 
+Previous work by Jaidka et al. [@jaidka2020estimating] explored the reason for these contrary correlations found in their research, and saw they could largely be attributed to some positive words such as 'lol', 'love' and 'good' being highly used and also coded as 'positive'. 
+Similar patterns were true for high frequency negative words. 
+When these words were removed from the LIWC dictionary the contrary patterns were no longer present.
+It is possible that grouping or aggregation by individuals could also be a useful method for addressing this feature in population mental health inference in the future, and it would be useful to test this with other population-level datasets.
+
+
+### Is prediction improved by using a larger number of linguistic categories? {#c6results2}
+
+When including all the additional categories of the LIWC, which include parts of speech lists and general purpose topics, each outcome had between eleven and thirteen associated features where $p$ < 0.05. 
+If the bonferroni adjusted p-value had been used then we would only have retained a single variable, which was *VADER Positive* for predicting anxiety. 
+Taking the unadjusted threshold, many of the variables that are not related to affective processes were included as top associations with each outcome. 
+There was also a combination of mean and variance of different categories, which suggests that in some instances the changes in discussion of a topic are more important than the mean number of times the topic is mentioned. 
+This may be related to theory that increased variance may be an early warning sign of fluctuations in someone's mental health [@helmich2021early]. 
+
+In a systematic review of studies predicting depression from Twitter that used a validated scale, *LIWC Past Focus*, negative emotions, anger words, and fewer words per Tweet were all found to be associated with depression [@kim2021systematic]. 
+*LIWC Past Focus* is thought to be associated with rumination, which is a common symptom of depression [@sasso2019sad].
+Our analysis did find an association between increased *Past Focus* and depression, and also highlighted the categories of *Leisure*, *Quant*, *They* and *Body*, of which both *They* and *Body* had p-values less than 0.05 in the final model. 
+*Body* could reasonably be expected to be associated with higher depression symptoms given the strong link between depression and somatic symptoms [@trivedi2004link].
+Meanwhile the increased variance of the use of *They* pronouns was associated with decreased depressive symptoms. 
+This may function in a similar way to the recurrent finding that increased use of I pronouns are associated with depression [@holtzman2017meta; @de2013predicting; @DeChoudhuryCountsHorvitz_2013], in that increased variance in the used of *They* represents a healthy balance of discussing both the self and others. 
+Interestingly, when the Twitter data were disaggregated, *I* pronouns were one of the LIWC categories associated with anxiety and depression. 
+
+Given that anxiety is under-researched in this area generally (see Chapter \@ref(scoping-review)) there is little precedent for which categories would be expected to be associated with it. 
+We saw, similarly to depression, increased anxiety was associated with increased use of words relating to the *Body*, and less words associated with *Health*. 
+Without being able to investigate the text of tweets it is not possible to tell whether the importance of these words in anxiety was related to the training time point being at the start of the COVID-19 pandemic, but the presence of *Body* could also be explained by increased somatic symptoms, which are a feature of anxiety as well as depression [@bekhuis2016network]. 
+Fewer words in the categories of *Leisure* and *Friend* may be a reflection of the impact of anxiety on social functioning [@barrera2009quality], with more anxious people less likely to discuss friends or leisure activities. 
+Previous work on predicting anxiety from Reddit posts had found that first-person pronouns and anxiety related bi-grams were important features in the prediction of anxiety [@shen2017detecting], but the training dataset was built on anxiety related search-terms. 
+The LIWC *Anxiety* category was not associated with anxiety at all in this study, which reinforces the value of using datasets that are not derived using the outcome of interest to predict that outcome.
+
+Lastly, general well-being was the most successful model of all three, with an adjusted $R^2$ value of 0.22.
+Many of the LIWC categories included in the general well-being model, such as *Money*, *Home*, and *Health*, all relate to aspects of ones personal circumstances, which are factors in the measurement of subjective well-being [@linton2016review]. 
+The increase of *Sexual* related words being associated with decreased well-being is an interesting outcome, which may be explained by the high volume of swear words that are included in the *Sexual* category. 
+Swear words have been found to be associated with higher depression in previous studies, which may explain the link [@de2013predicting; @CoppersmithDredzeHarman_2015]. 
+
+The fact that some categories overlapped between each of the depression, anxiety and general well-being models is encouraging given that all of these outcomes are fairly highly correlated.
+It is possible that the overlapping categories are linked to common causes of changes in each of the outcomes, for instance a difference in *Past Focus* between depression and well-being, or a difference in the use of *Health* related terms between anxiety and well-being. 
+The relatively high overlap of categories of depression and anxiety (*Body*, *Quant* and *Leisure*) again may then be expected due to the high co-morbidity of these two disorders [@kaiser2021unraveling]. 
+Having this overlap does suggest a limitation to the specificity of the models for each outcome, which could be tested by assessing the predictive performance of each model on the other two outcomes. 
+A similar experiment by Kelley et al. did find that specificity was poor between correlated outcomes [@kelley2021can]. 
+
+
+### What is the effect of changing the window and weightings of data? {#c6results3}
+
+Unlike other studies that had success in modelling their data with a decay weighting we found that increasing the window past two weeks or introducing decay weightings did not improve the fit of the model in general [@sawhney2021phase; @sinha2019suicidal]. 
+There were some instances, for example 8 weeks of data for well-being and no decay, where the adjusted $R^2$ value was higher, but being able to use fewer weeks of data may have more practical use than achieving a better fit.
+It is also important to note that the period of data included in the extended window would have included Twitter data from the very beginning of the COVID-19 pandemic, and so this may have impacted the patterns found.
+
+Since the two weeks of un-weighted data were used to select the variables for inclusion in each model we might find different results if the feature selection process was completed independently for each set of data. 
+This could be achieved by repeating the original variable selection process used in this study for each model, or by using automated variable selection methods like the elastic-net for each new weight and time-window specification [@zou2005regularization]. 
+
+In summary, it is possible to achieve some gains in model fit by increasing the window of data, particularly for general well-being and depression, but that these improvements are generally not large and are likely to be outweighed by the benefit of using a shorter time period. 
+Whilst there were slight differences in the patterns for anxiety, depression and general well-being we do not see big differences between each mental health outcome to suggest that each is relevant for different periods of time. 
+However, replication of this analysis on data from outside the COVID-19 period would provide stronger evidence for these conclusions.
+
+### How do the predictions perform over time? {#c6results4}
+
+All suggested uses for Twitter data in the real-time monitoring of mental health require a model trained on data from a particular period of time to apply to future data. 
+Uniquely in this study we had the benefit of a second ground truth time point in order to be able to test how each model performed at a future point. 
+Whilst all the models generally had higher RMSE at the future time point, for depression and general well-being the error was within one standard deviation of the error variance estimated through cross validation in the original model. 
+The error for anxiety was much higher, within four standard deviations of the originally predicted error. 
+Testing the differences between all the groups revealed that predictions of depression in women, and anxiety in men were likely to be made with higher error. 
+This could be explained by the fact that women show higher variability in their depression scores than men do, and that at Survey 2 men showed slightly higher variability in their anxiety scores than women did (Table \@ref(tab:sex-mh-tweets)).
+Generation also created a distinction in prediction accuracy across all three mental health outcomes, with more error in the predictions of the G1 cohort than the G0 cohort.
+Although there were more G1 participants in the training data than G0, G1 participants overall had poorer outcomes with wider variability in their outcomes that the G0 participants (see Table \@ref(tab:gen-mh-tweets)), which again may be the reason for higher error in their predictions.
+
+We also used the models to assess predicted anxiety, depression and well-being across the pandemic period. 
+Encouragingly each of the outcomes predicted appeared to be related in terms of increasing poor mental health or positive mental health, but also behaved independently in terms of the steepness of the change. 
+These predictions were generally coherent with events that occurred over the pandemic period, though at times the reasons for steep inclines or declines were not immediately obvious without access to the textual data that made up the tweets. 
+For instance, predicted symptoms of depression and anxiety both increased between the end of August/early September, but general well-being also increased at this time.
+These predictions were made further away from the original training time-point and it is possible that the model was over-fitted on text that was highly related to the COVID-19 pandemic, and so as topics of discussion changed more error was introduced into the model. 
+
+Despite the apparent utility of these models for tracking changes over time, their prediction error (as seen in Figure \@ref(fig:pandemicpred-error)) was very wide, and is likely to mean that only general trends at a population-level can be reliably inferred from Twitter data. 
+This is consistent with previous research that found whilst there were associations between Twitter data and mental health outcomes these associations were weak [@kelley2021can].
+Modelling of individual-level mental health outcomes is likely to require accounting for different individual baselines [@pellert2020individual]. 
+Similarly, population models may be improved if they were trained separately on significant groups such as gender and differing age-brackets, which when aggregated can mask important differences in the impacts of events on different groups [@prowse2021coping; @rodriguez2020drinking; @de2021profile].
+
+<!-- [@DeChoudhuryCountsHorvitz_2013] - model overestimated depression in women.  -->
+
+<!-- Wellbeing thought to remain relatively consistent online through seasons, unlike affect which changes [@yang2016life] -->
+
+### Strengths and limitations 
+
+There are several strengths to this study which give it a unique perspective on the challenge of inferring mental health from Twitter. 
+First, the quality of the ground truth data is a significant strength of this study, especially considering the generally poor quality of data in the field as a whole (see Chapter \@ref(scoping-review)). 
+This study has the benefit of using a novel linked Twitter dataset that has been derived from a well-known and characterised population cohort. 
+As such, I have been able to analyse and model Twitter data against known characteristics of the Twitter users included in the study, and this has also enabled three different mental health outcomes to be explored within the same methodology. 
+Second, having two ground truth time points has allowed me to test the model at a different time-point from the one at which the model was trained, as well as testing the prediction for those who were or were not in the original sample. 
+
+This being said, the study is not without limitations. 
+One of the major limitations is the timing of the ground truth time points, which coincide with the beginning of the COVID-19 pandemic. 
+This timing may well effect the generalisability of the findings of this study, and also have created perturbations in the data that increased the likelihood for model error. 
+A second limitation of this study is that the sample was more limited than others in this area, with under 200 participants. 
+These participants were roughly equal to the main linked sample in terms of their distribution of sex and generation, and in their mental health outcome scores. 
+Knowing from Chapter \@ref(scoping-review) that men are more likely to be higher Twitter users than women, it is also likely that women were over-represented in this sample and therefore the models derived may not generalise as well to Twitter data as a whole. 
+
+The last main limitation of this study is that it was not possible to access the raw textual data from participants' tweets.
+This prevented a more systematic exploration, for instance using word-shift graphs as illustrated in previous research [@al2019arabia; @dodds2011temporal; @reece2017forecasting], to gain a more robust understanding of the changes in the underlying topics of discussion over time. 
+This also would have allowed us to understand if particular words were influencing the strength of the chosen sentiment categories, such as whether or not *LIWC Sexual* was important because of the large number of swear words it covers. 
+Since we could not interact with the raw textual data we were also unable to test whether differences in pre-processing steps made differences to the model outcomes, though this would be an interesting avenue for future research.
+
+
+### Future directions
+
+Based on this study there are many interesting future directions for research.
+One of the main ways in which these findings could be further explored is by considering more future ground truth time points. 
+The ALSPAC COVID-19 data was collected four times within the first year of the pandemic, and by extending the analysis completed here to future time points it would be possible to test whether, and by how much, model error increases as a function of time from the training data point. 
+Similarly, planned improvements to the data collection software will soon allow for every user's entire Twitter history to be collected, rather than just their most recent 3,200 tweets. 
+This will allow future studies to consider ground truth time points further back in time, some of which include a greater variety of mental health outcomes such as the variety of well-being measurements explored in Chapter \@ref(cohort-profile). 
+The use of more historical ground truth and Twitter data would also support questions about longer term interactions between mental health and Twitter. 
+
+A further development based on the data considered here would also be to test the benefits of training models for population sub-groups who are likely to have different experiences of mental health outcomes. 
+This is particularly the case for gender, where it would be of benefit to have a more recent variable that describes participant genders, as opposed to their sex assigned at birth. 
+Future advances in individual level prediction are likely to require methods that can account for individual baselines of affect [@pellert2020individual].
+
+Whilst this research has begun to touch on the impact of individual characteristics on model bias we are still far from understanding how algorithms to model mental health behave in relation to common issues such as algorithmic bias based on cultural or gendered presentations of mental illness, since very few studies have access to ground truth data that can accurately capture the characteristics of their training sample (see Chapter \@ref(scoping-review) for a more detailed discussion).
+On an aligned topic, it would be beneficial to have a clearer understanding of how models behave when making out of sample predictions, with research so far suggesting that performance is fairly poor [@tsakalidis2018can]. 
+This was explored in this study, but with a small sample where the out-of-sample group were drawn from the same original study and so were likely to share many characteristics. 
+Testing models on completely different datasets would be informative for understanding when and how different models are most and least accurate. 
+
+Lastly, when comparing the categories chosen for the three mental health outcomes it seemed likely that co-morbidity and correlations between depression, anxiety and general well-being were reflected in the overlaps of the categories best associated with each outcome. 
+If individual symptoms, or thematically similar groups of symptoms [@bekhuis2016network], are considered rather than just the total outcome measure it is possible that stronger and more specific associations may be found that can be explained by common causes or common symptoms. 
+The relative success in this study of general well-being prediction also suggests that it is a fruitful area for further exploration in general, and an important population-level outcome. 
+
+
+## Conclusion
+
+This study has explored several questions relating to the use of Twitter data for inferring trends in mental health that have methodological relevance to the modelling of different mental health outcomes.
+For clarity I will briefly summarise the main findings and their implications for future research:
+
+- Codings of emotion using sentiment dictionaries are generally associated with mental health outcomes, but the relationships are not strong and generally not specific to any mental health outcome. One exception is the strong negative relationship observed between mean *VADER Positive* sentiment and anxiety. Therefore it is not advised to use any single sentiment coding as a proxy for a mental health outcome (Section \@ref(c6results1)).
+- Similarly, when considering more than one feature at a time model error and prediction bounds are high, so a generic model using sentiment dictionary features is highly unlikely to provide sufficient sensitivity or specificity for individual-level prediction (Section \@ref(c6results2)).
+- When aggregated by individual, variance in sentiment features can be more strongly associated with a mental health outcome than the mean value of those features (Section \@ref(c6results2)).
+- General well-being is explained better than depression or anxiety by sentiment and pattern of life features of Twitter data. Depression was the least successful of all three, which suggests that anxiety and general well-being (along with other forms of well-being such as happiness) are good candidates for future research in this area (Section \@ref(c6results2)).
+- Accounting for the grouped structure of individuals over time within Twitter datasets may be important for the accurate prediction of population-level outcomes using sentiment. This may be due to the highly variability in tweet frequencies between individuals at a population-level and the association between higher tweeting frequencies and poorer mental health outcomes. This should be investigated further (Section \@ref(c6results2)).
+- In general two weeks of Twitter data is broadly sufficient for modelling, but different mental health outcomes show signs of fitting somewhat better to different lengths of training data (Section \@ref(c6results3)). 
+
+
+Further research into mental health inference on Twitter using data with more ground truth time-points would allow us to test how model error changes as the time from the original trained model increases, and therefore how effective these models are likely to be in the future. 
+Testing models across different datasets would also be informative in terms of the assessment of the portability of models across contexts, and to better understand potential bias. 
+Lastly, future research accounting for co-morbidity between disorders and correlations between mental health disorders and positive well-being is suggested as a means of unpicking associations that are specific to symptom groups rather than individual disorders.
+

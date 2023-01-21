@@ -1,0 +1,1474 @@
+---
+author: 'Nina H Di Cara'
+date: 'April 2022' # Month and year of submission
+title: "Mental Health Data Science in Rich Longitudinal Cohort Studies"
+university: "University of Bristol"
+faculty: "Health Sciences"
+school: "Bristol Medical School"
+group: "MRC Integrative Epidemiology Unit"
+degree: "Population Health Sciences"
+wordcount: "64,080"
+logo: 
+bibliography: "bib/bibliography.bib" # location of your bibliography 
+csl: sage-vancouver-brackets.csl # location of your referencing style 
+knit: "bookdown::render_book" # doesnt need changing 
+site: bookdown::bookdown_site # doesnt need changing 
+lot: true 
+lof: true
+space_between_paragraphs: true
+fig_caption: true
+link-citations: yes
+header-includes:
+    \usepackage{tikz}
+    \usepackage{booktabs}
+    \usepackage{longtable}
+    \usepackage{siunitx}
+output: 
+  thesisdown::thesis_pdf: 
+    toc: true
+#    toc-depth: 3 # change for the depth of the table of contents - 1 gives two levels, 2 gives 3 levels etc...
+#  thesisdown::thesis_gitbook: default
+#  thesisdown::thesis_word: default
+#  thesisdown::thesis_epub: default
+abstract: |
+  `r if(knitr:::is_latex_output()) paste(readLines("00-abstract.Rmd"), collapse = '\n  ')`
+acknowledgements: |
+  `r if(knitr:::is_latex_output()) paste(readLines("00-acknowledgements.Rmd"), collapse = '\n  ')`
+publications: |
+  `r if(knitr:::is_latex_output()) paste(readLines("00-publications.Rmd"), collapse = '\n  ')`
+covid: |
+  `r if(knitr:::is_latex_output()) paste(readLines("00-covid.Rmd"), collapse = '\n  ')`
+declaration: |
+  `r if(knitr:::is_latex_output()) paste(readLines("00-declaration.Rmd"), collapse = '\n  ')`
+abbreviations: |
+  `r if(knitr:::is_latex_output()) paste(readLines("00-abbreviations.Rmd"), collapse = '\n  ')`
+---
+
+```{r thesis-setup, include = FALSE}
+# you need these packages
+if(!require(devtools))
+  install.packages("devtools", repos = "http://cran.rstudio.com")
+if(!require(thesisdown))
+  devtools::install_github("ismayc/thesisdown")
+library(thesisdown)
+if(!require(kableExtra))
+  devtools::install_github("haozhu233/kableExtra")
+library(kableExtra)
+if(!require(tinytex))
+  devtools::install_github('yihui/tinytex')
+library(tinytex)
+options(tinytex.verbose = TRUE)
+if(!require(flextable))
+  devtools::install_github("davidgohel/flextable")
+library(flextable)
+if(!require(dplyr))
+  install.packages("dplyr", repos = "http://cran.rstudio.com")
+library(dplyr)
+if(!require(ggplot2))
+  install.packages("ggplot2", repos = "http://cran.rstudio.com")
+library(ggplot2)
+if(!require(knitr))
+  install.packages("knitr", repos = "http://cran.rstudio.com")
+library(knitr)
+library(tufte)
+library(conflicted)
+# this will allow us to make word documents with relatively ok tables
+doc.type <- knitr::opts_knit$get('rmarkdown.pandoc.to')
+
+conflict_prefer("compose", "flextable")
+conflict_prefer("as_flextable", "gtsummary")
+conflict_prefer("font", "flextable")
+conflict_prefer("get_legend", "cowplot")
+
+```
+
+# Introduction {#intro}
+
+This thesis aims to explore what can be learned from the process of
+linking digital phenotypes from social media, specifically Twitter, in a
+UK birth cohort study. It illustrates what we can gain from data
+linkage in cohorts with respect to social media use, the understanding
+of the acceptability of this form of data linkage for cohort
+participants, and shows how these data can be used for the purpose of
+better understanding mental health.
+
+
+## Thesis Overview
+
+In this thesis I aim to answer two main questions. The first is whether linking
+social media data in a birth cohort is an effective means of developing high-quality
+datasets for mental health data science. The second is, given this novel dataset, 
+can we use it to better understand how textual sentiment is related to mental
+health and well-being. 
+The two parts of this thesis focus on each of these questions respectively.
+
+In the first part, 'Establishing the use of digital phenotypes in ALSPAC',
+I illustrate how social media
+is already being used in the Avon Longitudinal Study of Parents and Children (ALSPAC)
+based on questionnaire data in
+*Chapter \@ref(cohort-profile)*, present the results of focus groups with the cohort
+participants which considers the acceptability of the proposed data
+linkage in *Chapter \@ref(focus-groups)*, and then I describe the results of linking to
+Twitter in the ALSPAC cohort, with an overview of the data
+obtained in the linkage process in *Chapter \@ref(linked-data)*.
+
+The second part, 'Mental health data science using Twitter' 
+then focuses on conducting mental health data science with the
+linked Twitter data from the cohort. First in *Chapter \@ref(scoping-review)* I report the
+results of a scoping review of current methodologies in the literature
+for predicting mental health disorders from Twitter. In *Chapter \@ref(sentiment)* I go
+on to use the linked Twitter data from ALSPAC to establish the accuracy
+of sentiment analysis for inferring changes in mental health.
+
+Since this thesis takes an interdisciplinary approach each chapter has 
+its own unique approach and methodology. As such, this overall introduction
+aims to give a broad overview of the field of mental health data science, 
+and where cohort data linkage sits within it. The specific 
+literature and methodology relevant to each chapter will then 
+be presented in each of the empirical chapters. 
+
+### Chapters
+
+***Part A: Establishing the use of digital phenotypes in ALSPAC***
+
+**Chapter 2: The mental health and well-being profile of social media users**\
+This chapter gives a descriptive overview of social media users in
+ALSPAC, and asks how the populations of users of different social media
+platforms (namely Facebook, Instagram, Twitter, Snapchat and YouTube)
+differ in their demographic features, and in their mental health and
+well-being. This has implications for understanding whether we can
+consider social media users to be representative of the general
+population in terms of their mental health, and what this might mean for
+research conducted using these platforms.
+
+**Chapter 3: Participant views on social media and its linkage to longitudinal data**\
+I conducted a qualitative exploration into data from focus groups with the
+G1 and G0 cohorts that aimed to explore their views towards linking their
+social media data to the data already held about them by the cohort.
+These focus groups asked which types of data might be more or less
+acceptable, and under which conditions participants would consent to
+them being shared with other researchers. These findings were used
+to inform the data collection strategy used for linking participant Twitter data.
+
+**Chapter 4: Twitter data linkage: features of consenting participants and their data**\
+With Twitter data successfully linked in the cohort I give a brief
+overview of the linkage framework, and then present data on who agreed
+to link their data in ALSPAC. This asks what the
+similarities and differences are of those who consented to data linkage,
+including their mental health profiles and descriptive features
+of their Twitter data. I discuss the implications of these findings for
+the future use and applications of these data.
+
+***Part B: Mental health data science using Twitter***
+
+**Chapter 5: A review of methodologies for monitoring mental health on Twitter**\
+This chapter presents the results of a review of 165 published
+papers that attempted to monitor or detect mental illness from Twitter.
+It asks what their approach to collecting data was, how mental illness was
+defined and the features that were used for modelling. Finally it
+discusses the ethical and practical ways forward for the field and
+presents a series of recommendations for future research.
+
+**Chapter 6: Modelling mental health using linked Twitter data**\
+Using the data described in Chapter \@ref(linked-data) I go on to use measures taken
+in 2020 on depression, anxiety and general well-being in the ALSPAC cohort
+to consider how accurate sentiment can be as a signal of each of these
+mental health outcomes. I also test the impact of changing the length
+and weightings of training data time periods to see if different mental
+health outcomes are predicted more effectively with differently specified 
+training data.
+
+### Positionality and motivation
+
+It is common, and usually expected, in qualitative research for the
+researcher to present a positionality statement. This statement gives an
+overview of the researcher's understanding of themselves in relation to
+their topic and their participants in order to frame the position from
+which they approached their research [@finlay2008reflexivity]. In data
+science, the relevance of positionality and reflexivity are only
+recently beginning to gain traction [@ricker2017reflexivity], but
+especially when examining social phenomena like mental health it is
+likely that our positionality has an influence on our research questions
+and processes. As such I believe it is valuable to be explicit about
+this by including a brief positionality statement in my thesis, which also
+touches on my motivations for completing this research.
+
+By way of introduction, I am a White woman who grew up in Kent, UK from a background best described as middle class. 
+By heritage I am Irish-Italian, with my mother and paternal grandparents having moved to England from their respective countries.
+After studying for an undergraduate degree in Mathematics, I went on to train as a social worker.
+This training involved spending two years working directly with children and families who were experiencing mental health challenges in varying 
+contexts of addiction, domestic abuse and trauma. 
+It provided direct experience of how structural barriers prevent people from receiving mental health care,
+and the effect this has on their lives.
+Partly as a result of my training I am inclined to view mental health disorders 
+as being socially constructed categorisations of groups of symptoms that are inter-connected and tend to co-occur,
+rather than being distinct illnesses that cause a group of symptoms.
+My mixed technical and social care background has also given me a great interest in, and enjoyment of, interdisciplinarity
+which I hope is evident in this thesis.
+
+In studying the participants of ALSPAC I have at times felt both like an insider
+and an outsider in relation to them [@dwyer2009space].
+I am only a couple of years younger than the participants, meaning that I experienced similar 
+exposure to the emergence of social media at the same ages as they did, and that the age of my parents is in the
+same range as theirs. 
+At times this had made it challenging not to make assumptions about how questions might have been interpreted,
+or to assume similarities with the ways that I know social media is used between myself, my family and my peers. 
+At the same time, I am a relative outsider to the city of Bristol where the majority of the participants grew up
+and many continue to live, which has provided some distance between our experiences. 
+
+I was originally motivated to study digital phenotyping for mental health in the knowledge of how 
+challenging it can be for individuals to see their own mental health declining, and as a 
+means to support self-management of mental health disorders. 
+As I have spent more time on the topic I have become additionally motivated by concerns that the 
+development of mental health inference technologies could do the most harm to
+those who are most psychologically vulnerable, coupled with the potential for overstretched 
+statutory systems to put their trust in such technologies, which may serve to maintain the structural inequalities that cause poor 
+mental health in the first place. 
+This journey of my perspective on my research topic has left me now highly invested in 
+building robust evidence that allows us to truly understand what 
+works and for whom, and in finding ways to communicate this clearly when thinking of applying this research.
+
+### Reproducibility 
+
+This thesis is written using RMarkdown (Version `r packageVersion("rmarkdown")`), meaning that the textual content and code to produce all
+data-based display items such as tables and graphs are contained within the same source document. 
+The original source for this thesis is available on the Open Science Framework (doi: [10.17605/OSF.IO/HYD9G](https://www.doi.org/10.17605/OSF.IO/HYD9G)), where the reader may also find other digital
+supplementary materials which are signposted from the relevant chapters.
+Given the original ALSPAC datasets, which can be requested from ALSPAC, this document is fully reproducible. 
+
+
+## Data science for mental health {#ds4mh}
+
+Mental health is a global issue. The World Health Organisation (WHO)
+estimate that approximately 19% of years lived with disease globally can
+be attributed to mental health [@gbdtool]. The mental illnesses which
+most represent this burden are depression, anxiety, schizophrenia, and
+bipolar disorder, and suicide is currently the fourth leading cause of
+death among 15-29 year olds worldwide [@who2019suicide]. In the United
+Kingdom (UK) the last Adult Psychiatric Morbidity Survey, which is
+distributed every seven years, estimated that 17% of over 16s in the UK
+were suffering from a mental health condition, and that nearly half
+think that they have had a mental health condition at some point in
+their lives [@mcmanus2020data]. It also showed that just over a third of
+people who self-identified as having a mental health condition had never
+been diagnosed by a professional, and that up to 75% of people with a
+mental health condition may not get the treatment that they need
+[@mcmanus2020data].
+
+This picture of mental health need across the UK population, and across
+the globe, impresses the importance of understanding how to best prevent, treat 
+and define mental health. Though the statistics are concerning, there has
+been admirable progress towards this aim over the past 80 years. The
+rapid development of the field of psychiatry in the twentieth century
+and the introduction of a diagnostic system for mental illness has aided
+the recognition and understanding of mental disorders [@dsmV2013]. Our
+subsequent development of therapeutic techniques for treatment,
+alongside pharmaceuticals, continues [@mcintosh2016data]. Up until
+recently, mental health diagnosis has relied on the observation and
+interpretation of behaviour by another human, in this case a trained
+medical professional. As we have entered the internet age however, we
+have uncovered new opportunities for understanding mental health from
+the explosion of recorded digital data about our health, well-being and
+daily lives, as well as developing the computational power and
+capabilities for analysing it [@datawillseeyounow2020]. This process of
+datafication of our lives and health is somewhat cynically of great
+benefit to commercial companies for generating profit from our datafied
+selves, but its benefits can also be harnessed in the best interests of
+research into our mental health and well-being.
+
+The sensemaking of this digital data for the benefit of mental health
+falls under several umbrella terms. It can be known as *mental health
+data science* [@mcintosh2016data; @russ2019data], *digital epidemiology*
+[@naslund2019digital] or *digital psychiatry* [@torous2021growing],
+which all tend to sit within the broader field of *digital health*. For
+simplicity I will defer to the term *mental health data science*. The
+potentials of this emerging field are broad, and in theory cover any
+application of data science to any type of mental health related data
+[@russ2019data]. This could mean using operational research to optimise
+treatment queuing systems [@mcintosh2016data], using deep learning for
+the interpretation of neuroimaging data [@su2020deep], or predicting
+the best matches between individuals and medications
+[@taliaz2021optimizing]. Another application of data science to mental
+health is the passive sensing of mental health signals using high
+frequency digital data, such as smartwatches, phones, and pertinent to
+this thesis, social media [@datawillseeyounow2020]. These sources of
+personal digital data are known as *digital phenotypes*, defined by
+Torous and colleagues in their seminal work on the topic as the
+"moment-by-moment quantification of the individual-level human
+phenotype in-situ using data from smartphones and other personal digital
+devices" [@torous2016new]. As such, digital phenotypes may be derived
+from the language people use, the way they move, metrics related to
+social connectedness or the times of day they are active
+[@datawillseeyounow2020].
+
+These data have great potential to be used as a mental health "smoke
+alarm" [@insel2018digital] that could alert to concerning changes in an
+individual's mental health, and also to capture 'genuine' lived
+experiences rather than those reported to clinicians which can be
+influenced by impression management or simply variable recollection
+[@torous2016new]. The ability to understand mental health in this way
+paves significant new avenues for research, as feedback on longitudinal
+mental health changes may help us to better understand the course and
+onset of mental disorders in ways that are not possible, or ethical,
+with traditional research methods [@mcintosh2016data]. Other attractive
+incentives for developing these technologies are their potential to
+scale and their cost effectiveness for use in clinical care. A report
+from the United States (US) Behavioural Workforce Administration in 2020
+estimated the need for mental health treatment in the US alone would
+require an additional 4 million mental health professionals, which would
+mean more than quadrupling the current estimated workforce
+[@behaviouralworkforce2020; @russ2019data]. Digital methodologies may
+provide a means to support the provision of mental health care by more
+efficiently allocating existing resources based on risk, or more quickly
+identifying the best treatment for an individual from a range of options,
+and so relieve some pressure from already overstretched services.
+
+As well as making a contribution towards the potentials of personalised
+medicine, these technologies have significant applications in population
+health too. Collation of population-level digital phenotypes can be used
+to provide an understanding of how populations are responding to events
+such as the COVID-19 pandemic [@lwin2020global], as well as how the
+impacts may be felt differently over geographic areas. They have also
+been explored for use in specific sub populations such as students
+[@melcher2020digital]. A digital approach to population health
+monitoring also has the benefit of timeliness, which traditional surveys
+do not provide, although this is often at the expense of data which can be
+noisy and from a biased sample of internet users [@phw2020inequalities].
+
+Several key reports and voices in the field have been keen to impress
+the need for these exciting opportunities presented by our digital
+mental health revolution to be tempered with a responsible approach to
+innovation, which should comprise an appropriate understanding of the
+risk that these technologies pose societally, ethically and practically
+[@stilgoe2013framework; @datawillseeyounow2020; @CDEIreport; @mlincsc; @davidson2020crossroads].
+This is perhaps best put by the National Institute for Mental Health
+(NIMH) in their statement that "the promise is enticing, but there are
+still many unanswered questions about effectiveness, concerns about
+privacy, and challenges for regulation of these nascent technologies"
+[@arean2017opportunities]. As with many technological advances, there is
+a balance to be found between deploying technologies as quickly as
+possible in order to allow people to benefit from them, and waiting to
+deploy anything until we can be totally satisfied on their stability and
+safety [@stilgoe2013framework; @CDEIreport]. Due to the inability of
+regulation to effectively keep up with the pace of technological
+development, this balance is largely left to us as a field to
+find, guided by developing research and existing laws or regulation
+surrounding the use of data, human rights and research ethics
+[@stilgoe2013framework]. We are currently in the process of feeling out
+these acceptable limits in the field of mental health data science, but
+the nature of digital innovation means that we are essentially laying
+the tracks in front of the train. Calls for careful next steps
+[@davidson2020crossroads] are reinforced by a 2018 review by the
+National Health Service (NHS) which estimated that digital mental health
+prediction will start to be operationalised within two to five years
+[@topolreview], which brings us to the time of writing. As anticipated,
+in the commercial sector mental health prediction is already being
+researched or applied in technologies that are part of our day to day
+lives. Spotify, a music streaming service, has filed a patent to use
+mood sensing to enhance personalised music prediction
+[@anderson2021just]. The fitness watch company FitBit have recently
+released an upgrade that tracks stress in people using their
+smartwatches, and natural language processing (NLP) technologies for mental health
+are being developed by digital counselling providers such as Sondermind (https://www.sondermind.com/)
+and Ieso (https://www.iesohealth.com/). 
+
+The regulatory environment in particular becomes more challenging when
+we consider the distinction between so-called *emotion AI*
+[@mcstay2018emotional], which seeks to infer emotional states, and
+mental health inference. Whilst emotion and mental health share similar
+characteristics, and their fields share similar ethical quandaries
+[@stark2021ethics], mental health inference is specific to classifying
+what would be considered mental health disorders, rather than momentary
+emotional states, so as to find the boundaries between these and
+'healthy' functioning. This distinction is important, particularly as
+mental illness (as an umbrella term for any combination of mental health
+disorders) is a protected characteristic under UK law
+[@equalityact2010], and in many other countries, whereas emotion
+inference is not specifically protected [@bard2020developing]. This
+means that discrimination on the basis of one's mental health is
+illegal, and so inferring information about this attribute, like other
+protected characteristics such as gender, age or ethnicity, must be
+considered carefully. However, as the boundaries between what we call
+*emotion* and what we call *mental health* blur, we reach more difficult
+questions about what mental health even is. For instance, classifying
+mood is not the same as classifying a mental health status, but mental
+health status may be inferred with relatively high sensitivity from
+particular patterns of moods if the mood measurements were accurate.
+This opens up further ethical challenges in this area, since this
+information could be among that shared with health insurance companies
+without breaching current laws in multiple countries, or perhaps more
+insidiously used to monitor employees or school-children, which is
+currently occurring [@crawford2021time].
+
+Outside of concerns about the capabilities of these technologies for
+surveillance and insurance risk prediction, there are also ongoing
+challenges in the field of AI and machine learning with respect to the
+quality and representativeness of training data. We already know that
+training data collected from digital technologies or Internet of Things
+(IoT) devices show similar biases as seen in other sectors due to
+inconsistencies in accuracy of readings from wearable devices in those
+with darker skin [@colvonen2020limiting], or divergences from the
+patterns of English that most of our natural language processing tools
+have been designed around [@bender2021parrots; @straw2020artificial], or
+simply differences in patterns of life across heterogeneous groups
+[@muller2021depression] [^2]. We can foresee that these conditions
+create a perfect storm for algorithmic bias, through which mental health
+technologies may become another route for perpetuating systemic
+inequalities that inevitably arise from these data. This reinforces the
+importance of high quality data needed to drive these technologies, so
+that we have robust evidence of what works, and for who.
+This evidence is currently in short supply in digital phenotyping studies, due to
+the overabundance of studies focused on small
+clinical populations, rather than larger epidemiological samples
+[@davidson2020crossroads]. 
+This high quality data is 
+also needed to help to develop NLP-based tools that can account for individual differences
+in language use, which is an ongoing challenge in the field [@kocon2021learning].
+Similar issues of data quality arise from the use of
+social media data for population health purposes. Without a clear
+understanding of who the population is that is using social media sites,
+we cannot yet make decisions using the inferences we are generating from
+social media when we do not yet understand how our data might be biased.
+Without accurate ground truth data we also cannot know whether
+differences that are found in textual content, patterns or sentiment actually relate to
+changes in the overall mental health of the population, or translate to
+increased service demand for health care services.
+
+As well as the understanding of ground truth demographic characteristics of samples,
+the quality of ground truth mental health measurement across studies is also of concern. 
+*Ground truth* refers to information 
+about a sample that is assumed or known to be true, which is 
+usually the outcome that a model is being trained to predict in supervised 
+learning tasks, like a particular mental health disorder [@cardoso2014gold]. 
+The quality of what is considered to be ground truth in machine learning tasks
+can vary, and the term *gold standard* ground truth may be used to signify
+ground truth measurements that are generally agreed to be highly reliable 
+at representing the outcome that is being predicted, such as validated 
+scales or user self-report [@cardoso2014gold], though what is considered
+to be high quality is likely to be context dependent.
+A recent systematic review by Kim and colleagues
+sought to identify studies that predicted depression from Instagram,
+Facebook and Twitter, with inclusion criteria that stipulated that
+the mental health outcome must have been measured using a validated
+scale, they only found 15 studies to review [@kim2021systematic], whereas
+a review with similar criteria but no requirement for the use of validated scales
+[@chancellor2020methods] found 40 studies on the same platforms. 
+
+In summary, mental health data science is still a relatively new field
+and one with huge potential to support the increasing demand for mental health
+services and support that is being felt across the world. However, we
+can also see that the stakes are high in this field; mental health is
+one of our most personal human attributes and, as with any research that
+eventually intends to impact human lives, we need to ensure we can
+implement robust technical models along with an awareness of their societal
+implications. In order to successfully harness this potential we
+need to retain a focus on high-quality measurement in order to develop
+useful training data and models that we can test for bias and fairness.
+
+## Social media and mental health {#smandmh}
+
+As discussed, one aspect of mental health data science is digital phenotyping.
+Digital phenotyping can take many forms, and given the range of digital
+data available about us from our smart watches, phones and online lives
+there are many potential sources of passive sensor data to draw on
+[@datawillseeyounow2020]. This thesis will concentrate largely on the
+study of social media data for the purpose of monitoring and predicting
+mental health, and so it seems prudent to begin by defining exactly what
+I mean by *social media* and how it can be used to derive digital
+phenotypes. I then go on to discuss current research on the relationship
+between social media use and mental health, before identifying the
+current challenges that are facing this field.
+
+### Deriving digital phenotypes
+
+Whilst most of us could name several social media sites, it is much more
+challenging to pin down the definition of what makes these examples, say
+Facebook, Instagram or Twitter, social media sites. Indeed, in the
+literature social media are defined in multiple ways, which tend to share themes
+around user generated content, and allowing people to connect through the internet [@carr2015social]. 
+Carr and colleagues [@carr2015social] reviewed these definitions to offer one of
+the more thoughtful definitions available of what characterises a social
+media site. As well as being specific about how we define social media
+sites, the definition covers the facets of social media use that allow
+us to understand the reasons that social media has so much value to
+mental health researchers:\
+
+> \"Social media are [Internet-based]{.ul} channels that allow users to
+> opportunistically interact and [selectively self-present]{.ul}, either
+> in [real-time or asynchronously]{.ul}, with both [broad and narrow
+> audiences]{.ul} who derive value from user-generated content and the
+> perception of interaction with others\"
+
+**Selectively self-present**: A means of understanding how people want
+to be seen by the world, in the ways they set up their profiles, the
+ways they talk and the types of content they share.  \newline
+**Real time or asynchronously**: The timings with which people use
+social media give strong indications of their daily routines, or
+disruptions to them, which has been repeatedly found to be an important
+factor in predicting mental ill health. This can also give clues to
+sleep routines, which are strongly related to mental health outcomes.  \newline
+**Broad and narrow audiences**: We can consider the online communities
+that people belong to, and how these reflect a person's interests and
+beliefs. This may also include which subset of people this person
+interacts with, how large this group is, to what extent the interactions
+are reciprocal and how frequently they interact.  \newline
+**Internet-based**: Lastly all this data is collected and stored. This
+gives us access to all the above data throughout the history of that
+person's interaction with the platform, objectively timestamped so that
+we can look at it both longitudinally and in real-time.  
+
+There is an attractive opportunity to use the volumes of data produced
+by individuals on social media as a low cost, high time frequency and (in theory)
+non-invasive method of monitoring individual and population health. This
+methodology has been widely researched across a number of social
+media sites, where there has been some success in identifying a
+wide range of mental disorders
+[@chancellor2020methods; @kim2021systematic]. However, there are also
+concerns about the quality of data in this field - most crucially an
+imbalance in the availability of digital footprint data versus the
+accessibility of genuine ground truth information against which to train
+models and assess the effectiveness of any algorithms or methodologies
+developed [@chancellor2020methods; @davidson2020crossroads].
+
+In order to be specific about the role of social media in mental health
+measurement and monitoring I will briefly outline four of the mechanisms
+by which social media can function as a digital phenotype, by drawing
+connections between the features of data measured on social media
+platforms and their links to presentations of mental health disorders.
+These mechanisms are language, timing, connectivity and visual content. 
+
+#### Language {#twitterlanguage}
+
+The text that people share on social media is one of the main
+contributions of social media to mental health inference. Social media
+is one of the only sources of digital phenotype data that contains self
+expression through language [@datawillseeyounow2020], outside of voice
+recording/microphone data. There are two facets of relevance between the
+language used by individuals and their mental health. The first is what
+people talk about, for instance the events that they recollect or the
+topics they choose to focus on; this speaks to the link between
+someone's immediate interests and concerns and how they are feeling. The
+second is the way in which they talk about these topics, such as the types of 
+words used to describe them or the sentiment of the text, which is
+connected more to cognitive processes that are hypothesised to differ
+between those with or without current mental health disorders
+[@darby1984speech]. This link between language, usually through speech,
+and mental health appears mostly in the literature around depression,
+and has been known and researched long before social media provided a
+new avenue for its exploration
+[@bucci1981language; @andreasen1976linguistic]. However, the
+availability of written natural language produced through social media
+is a unique addition to this area. In the past written language was
+difficult to use for statistical analysis since a) it was hand written,
+and so not easy to process in large volumes or at speed, and b) aside
+from letters between friends or diaries, the majority of written
+information was in the form of formal letters [@mcculloch2020because].
+As such, social media presents an opportunity to study language with a
+huge volume of first-person data that has not been available previously.
+
+The task then is to make sense of this written data, in order to be
+able to use it with quantitative methodologies. This is broadly known
+as *Natural Language Processing* (NLP). NLP is a wide field that covers
+many different approaches to working with textual data, from machine
+translation to automatic summarisation. A particularly popular technique
+when using social media for mental health analysis is sentiment
+analysis, which is a means of understanding the overall feeling of a piece of
+written text. There have been many algorithms developed for this purpose
+which range in complexity [@ligthart2021systematic], but in general they categorise 
+text into, or generate a score that summarises the level of positivity, negativity or
+overall valence of a piece of text. Sentiment features have been found
+in several studies to be a useful predictive feature in mental health
+inference algorithms [@chancellor2020methods], although this has more
+recently been contested [@bathina2021individuals] and is discussed in more depth
+in Chapter \@ref(sentiment). 
+Parts-of-speech tagging is another popular a method that is used to identify the
+grammatical part of speech that each word in a piece of text matches,
+such as pronouns, verbs or adjectives [@voutilainen2003part]. Research
+into the links between mental health and speech using this technique have found that
+increased use of first-person pronouns is associated with, or predicts,
+depression [@zimmermann2017first]. Many more approaches, such as topic modelling or
+word importance, can also be used to extract meaning from social media
+text.
+
+There are obvious challenges to using NLP in the context of social
+media. Internet language, and by reflection the slang used by young
+people, changes rapidly and words can take on whole new meanings in
+different contexts [@mcculloch2020because]. For instance the word
+"sick" could refer to being unwell, or as a slang term for
+something that is very impressive.
+Additionally, the multi-media format of social media can mean that text
+is interpreted differently if it is accompanied by an image, emoji or
+GIF; this aligns with similar concerns about computational methods not
+correctly interpreting irony [@van2016guidelines]. An over reliance on
+language data also impacts on the ease with which such research can
+be applied to non-English text, and also has the
+potential to systematically misclassify or misrepresent those who
+speak English in a form that is not considered typical by NLP systems
+based on their training data [@bender2021parrots]. Lastly, social media 
+text can be very short, with some platforms like Twitter limiting
+users to a certain number of characters for each post. This limits the 
+amount of information available to make a reliable prediction, compared to a book
+or letter, and in particular some sentiment based methods are optimised for
+use on longer length texts so may perform differently on social media 
+data [@ribeiro2016sentibench].
+
+In summary, language has the potential to play an important role in mental
+health inference, and there are a variety of language-based methods available
+for extracting meaning from social media data. These allow us to make use of 
+the unique presence of language data in social media as a digital phenotype.
+
+#### Timing
+
+One of the main benefits of objectively measured data like social media
+posts is that it is stored with exact timestamps, usually with the
+precision of seconds, meaning that we can easily obtain precise measures
+of when users are actively posting or interacting on social media sites.
+This is useful for a range of reasons. Firstly, timings of data
+generation can lead to an understanding of someone's *patterns of life*
+which indicate typical daily routines [@frank2013happiness] and,
+importantly, the timings of sleep [@nouman2021recent]. Disrupted sleep
+or insomnia is thought to be causally related to multiple mental health
+disorders [@scott2021improving], and is also a risk factor for
+suicidality [@perlis2016suicide]. Therefore, changes in sleep patterns 
+have strong potential to be important early indicators of declining
+mental health. Timings of post generation or interactions also allow
+researchers to access information about the frequency of using social
+media [@chancellor2020methods; @wongkoplap2017review]. Lastly,
+because this data is stored and available historically we can use the
+precise timings stored to construct longitudinal information about
+social media use that allows us to explore how patterns of behaviour
+have changed over time. This is especially important for the development
+of Just-In-Time Adaptive Interventions (JITAI) [@nahum2018just], or
+research that explores how use patterns change during poor mental health
+episodes.
+
+Of course, there are potential limitations to timings too, such as life
+circumstances that may easily explain changes or differences in timings
+of use; someone may do shift work that changes between days and nights,
+or may recently have become a new parent. Timings of data generation
+also do not allow us to measure the times that someone was online and
+scrolling a social media site, though this could be approximated using
+data such as the times that someone interacts with content on the site.
+This so-called passive social media use has been identified as
+potentially being an important signal of declining mental health
+[@Chen2016].
+
+Using time-based data from social media provides another
+dimension through which we can understand social media users and how they
+change over time, and allows to approach mental health as a changing and 
+moveable concept rather than a static classification.
+
+#### Connectivity and interaction
+
+Relationships, communication and willingness or unwillingness to
+interact with others is another common theme in the symptoms of mental
+health disorders [@dsmV2013]. By definition, social media serves a
+social purpose and there are several means of assessing social
+connection online. This may involve the number of 'friends' or
+connections someone has on the site, how many times they interact with
+them and how, and whether they contact specific people directly or
+broadcast messages to specific groups. This information about digital
+social connections can be used as a feature of prediction algorithms for
+mental health disorders. For instance, recent research has found that
+mental health can be predicted with modest accuracy from the content
+generated by the users that people follow on Twitter [@costello2021predicting].
+This topic was also the subject of an infamous experiment by Facebook in
+2014 which explored emotional contagion through social media based on
+the content that people observed their friends posting
+[@kramer2014experimental]. There have also been findings relating to
+friendships on Facebook, where the number of friends and the
+connectivity of the friendship network were associated with depression
+[@kim2021systematic]. 
+
+The nature of online connectivity is likely to be
+highly subjective, and it cannot be assumed that online relationships
+reflect somebody's offline interactions. However it is clear that they
+can be used a useful indicator none-the-less, and aligns with the requirement
+for diagnosis of a mental health disorder of some impairment in an individual's
+social functioning based on their symptoms [@dsmV2013].
+
+#### Visual content
+
+Social media generally allows for the sharing of visual context, as well
+as textual updates. This could include still images like photographs and
+graphics, videos and animations or short moving clips known as GIFs. As
+well as adding layers of meaning to the textual content they often
+accompany, visual content is the primary communication format of some
+social media sites such as Instagram, Snapchat and TikTok. However,
+visual content is comparatively less well understood than other forms of
+data as a digital phenotype [@manikonda2017modeling] despite the fact
+that studies attempting to use images to predict mental health have been
+relatively successful so far. For instance, Reece et al.
+[@reece2017instagram] employed computer vision techniques to extract the
+hue, saturation and brightness of images and found that these could be
+used to predict depression in young people. It is likely that the full
+potential of visual content will be achieved by using it as an input
+feature alongside the other features already described such as textual
+content and other metadata
+
+Visual content is an important part of online communication today, and
+despite being less well-understood in mental health inference it has
+strong potential to represent valuable information that improves the quality
+of inference. 
+
+#### Summary
+
+The features language, timing, connectivity and interaction, 
+and visual content are all useful data-driven markers of behaviour change, and 
+as alluded to, the best
+use of them tends to be from using different types of features together to build 
+a more thorough picture. 
+For instance, combining features of images and textual information to provide better
+context for images [@vempala2019categorizing; @guntuku2019twitter], 
+or using both the timing of social media use and text to identify when meaningful
+changes occur [@sawhney2020time; @tsakalidis2022identifying]. 
+
+### Perspectives on the relationship between social media and mental health {#perspectives-mhsm}
+
+Having outlined the ways that social media data can give signals of
+mental health and well-being, I will now outline the two fairly distinct perspectives
+that existing research has taken on the relationship between social media and mental health.
+These different perspectives essentially imply two causal directions,
+with one asking how the way people use social media affects their mental health
+and well-being, and the other asking how people's mental health and well-being
+affects the way that they use social media.
+The differences in the approaches taken between these fields in terms of
+their purpose, data and methodologies is outlined in Table \@ref(tab:fields).
+Whilst they are currently operating as
+largely separate fields recent research into longitudinal associations between social media
+use and mental health indicates that these two causal directions are
+actually likely to be reciprocal over time [@heffer2019longitudinal],
+though longitudinal causal research in this area is still in its very
+early phases
+[@faelens2021social; @schonning2020social; @karim2020social].
+A more detailed review of previous research across these areas is presented in 
+Chapter \@ref(cohort-profile).
+
+```{r fields, echo=FALSE}
+
+library(kableExtra)
+
+bind_rows(
+   c(" " = "Purpose", "How does the way that people use social media affect their mental health and well-being?" = "Improving guidance for safe social media use, improving controls on social media companies.", "How does people’s mental health and well-being affect the way that they use social media?" = "Improving early detection of mental disorders, improving understanding of the longitudinal development and changes to individual and population mental health"),
+   c(" " = "Typical Data", "How does the way that people use social media affect their mental health and well-being?" = "Data tends to be related to which sites participants have used, how long they have used them for and what they were doing whilst on those sites.", "How does people’s mental health and well-being affect the way that they use social media?" = "Data on the use of a specific platform/s with considerations of the language used, the timings of data generation, the social networks engaged with and the types of content shared."),
+   c(" " = "Typical Methodologies", "How does the way that people use social media affect their mental health and well-being?" = "Regression modelling and structural equation modelling. Results tend to be communicated as effect sizes, model fit and significance testing.", "How does people’s mental health and well-being affect the way that they use social media?" = "Prediction and inference tasks that tend to use machine learning methods. Results are measured with prediction evaluations such as accuracy, precision and recall.")) %>%
+  kable(format = "latex", booktabs=TRUE,
+      caption = "The differing purposes, data and methodologies used by the two alternative approaches to studying the relationship between social media and mental health.") %>%
+  kable_styling(full_width = TRUE, latex_options = c("striped")) %>%
+  column_spec(1, width = "8em")
+```
+
+As outlined, these two fields do have slightly different purposes.
+Understanding the way that social media use affects the mental health
+and well-being of young people has been of particular interest given the
+considerable policy and research interest in recent years regarding the
+impact that social media use has on the mental health and well-being of
+young people [@dubicka2020], with particular focus on the dose-response
+relationship between social media use (usually measured by screen time) and declining mental health.
+However, more recent research has recognised the likelihood that the way
+social media is being used by the individual is likely to be more
+significant than just time spent [@schonning2020social].
+
+Although they are currently largely separate, with different venues,
+methodologies and audiences, both directions of research have strong
+potential to inform one another. The relative success so far of
+predicting mental health signals from social media data indicates that
+those experiencing mental health disorders do use social media differently to those that
+are considered 'healthy'. This has been observed using a range of
+features that include interpersonal connections, language, frequency and
+types of content being engaged with
+[@wongkoplap2017review; @chancellor2020methods; @kim2021systematic].
+However, research about the impact of social media on mental health
+largely relies on attempts at capturing dose-response relationships that
+focus on the amount of time spent on social media sites, which is only
+one aspect of social media use as a digital phenotype
+[@schonning2020social]. It is likely that research into the relationship
+between social media use and mental health will benefit from more
+detailed digital phenotypes, such as those that are beginning to use
+techniques like screen recordings which then capture passive use which
+is likely to be very important in understanding mental health
+[@k2020conceptual]. Similarly, identifying mental health signals from
+social media data would benefit from the more detailed measurement of
+mood such as Ecological Momentary Assessment (EMA) that are increasingly
+being used by researchers 
+[@ernala2019methodological; @de2021smartphone; @sedano2021use; @biernesser2021development].
+
+### Current challenges
+
+Whilst I have described the ways in which social media data can
+contribute to our current understanding of mental health, there are lots
+of challenges that we still need to understand in order to develop a
+well-grounded theory for the effective modelling of mental health from these data. 
+Here I discuss three of the technical challenges that currently
+exist: the lack of ground truth data, the unstructured nature of the data collected
+and the ability to access digital footprint data for research.
+I reserve the ethical challenges for a fuller discussion in
+Section 3.
+
+#### Lack of ground truth
+
+The lack of high quality ground truth data in mental health inference
+from social media is arguably the greatest challenge to the field at
+present. Concerns about data quality have persisted across several years
+[@chancellor2020methods; @wongkoplap2017review], but so far little
+attention appears to be paid to resolving them. A lack of
+understanding of who is in the samples we are drawing poses significant
+risks to the safety and ethics of the systems that these data are used
+to train. Without knowing the sample we cannot understand who our
+methodologies do and do not work for, and therefore are unable to test
+for systematic biases embedded in algorithms. The lack of ground truth
+also extends to our understanding of the mental health outcomes that are
+being measured. There have been some solutions to this problem, mostly
+relying on collecting survey data from online crowdsourcing platforms
+such as Prolific or Mechanical Turk [@chancellor2020methods], however
+these are generally limited to a single time point of ground truth data
+collection, and do not tend to be from population samples. 
+
+Other attempts at inferring ground truth in the literature tend to be
+guessing characteristics from the data itself. For instance, demographic
+attributes that are important for understanding variations in mental
+health, like gender, socio-economic status and age, are generally not
+available alongside social media data being collected online. In an
+effort to establish some understanding of the demographics of their
+samples many researchers have used algorithmic methods that estimate
+these characteristics from the data itself [@sloan2015tweets]. This
+might include guessing gender from account names and profile pictures
+[@wang2019demographic], or age from styles of language use
+[@morgan2017predicting]. However, these can only ever achieve a certain
+threshold of accuracy, and reinforce gendered stereotypes that
+contribute to the systematic and ongoing bias against those who are
+LGBTQIA+ and genderqueer [@fosch2021gendering]. Many studies also derive
+their mental health labels from their input data, for example by
+searching for people who have stated "I am depressed" on Twitter to
+find positive cases of those who are depressed [@chancellor2020methods].
+This has the potential to introduce several forms of bias, namely that
+'positive' cases might not actually be depressed, that they may only
+represent a specific subset of depressed people on Twitter, and that
+training data is then implicitly linked to the outcome before we have
+even attempted to use any machine learning techniques. This issue
+is discussed further as part of the review in Chapter \@ref(scoping-review).
+Some studies also use psychiatry or psychology professionals to review and 
+label the data with mental health outcomes based on their professional expertise
+[@tsakalidis2022identifying; @ellouze2021approach]
+
+Having the ability to test the fairness and bias in algorithms,
+especially those with social implications, is vital to the development
+of technologies that behave fairly for everyone. 
+
+#### Unstructured and Highly Variable Data
+
+The nature of social media means that the volume and type of data
+produced is entirely within the control of the social media account
+user. Unlike traditional data collection where the researcher has
+designed what data they will collect and how many questions they will
+ask, social media has no defined frequency or quantity [@al2021linking],
+which also means that we cannot apply traditional approaches to missing
+data in those who produce very little data. The consequence of this is
+that the volumes of data that can be collected are highly variable. So,
+whilst social media presents the potential for high-resolution
+understanding of mental health we also need to take into account the
+effect that the huge variability in training data brings to algorithm
+effectiveness [@al2021linking]. This is likely to mean conducting
+sensitivity analyses to see how prediction accuracy is impacted by
+variable rates of data production. The variability in social media data
+is also likely to include individual differences in which social media
+sites people use for which occasions or feelings [@alhabash2017tale], with
+a full high-resolution understanding of social media behaviour only
+likely to be achieved if we are able to collect data from multiple
+social media sites for the same individual.
+
+#### Data Access {#dataaccess}
+
+One of the core limitations of using social media data for research is
+the constraints imposed by the commercial companies who own social media
+platforms, and ultimately control access to the data
+[@torous2021growing]. Data from digital phenotypes are usually generated
+via third-party apps like Facebook, Instagram, or Reddit, and non-social
+media sites too like Strava for health monitoring or Spotify for music
+streaming. Access to these data is largely controlled by the companies
+who own them and if they are accessible to researchers then they are
+made available in a controlled manner through an application programming
+interface (API). An API is a programmatic system for requesting and
+receiving data from a central provider, like a company. They usually
+require short passcodes called API keys in order to be accessed, which can ensure that those
+accessing the API do not make too many data requests, or that data is
+not delivered that the requester does not have permissions for.
+
+Approaches to making data available varies across social media
+companies, and are currently a major limitation in cross-platform social
+media research [@torous2021growing; @mancosu2020you]. A recent report by
+the Royal College of Psychiatrists (UK) into the potential harms and
+benefits of social media for young people recommended the "regulator
+to urgently review and establish a protocol for the sharing of data from
+social media companies with universities for research into benefits and
+harms on children and young people" [@dubicka2020]. At the time of
+writing Facebook (now *Meta*) owns the sites Facebook and Instagram,
+which are two of the most popular social media sites in the world.
+Facebook does not allow any research access to its data and APIs outside
+of a handful of selected projects, which was a change made largely in
+response to the Cambridge Analytical scandal [@mancosu2020you]. This has
+led to some researchers adopting a web-scraping strategy (automatically
+capturing all the content of a webpage) as an alternative way of
+accessing the data, which has in some cases led to threats of
+prosecution by Facebook [@facebooknyu2021]. It is possible, as some
+sites do, to make user-level data accessible to applications if the user
+gives consent for this through a process known as Open Authentication
+(OAuth), which would allow for users to share their data with research
+studies that they had consented to take part in. Alternatively sites
+like Twitter have made their public API highly accessible, and in 2021
+released an API specifically for academic researchers which gives full
+access to the whole of Twitter's history of public data, allowing
+verified researchers on their platform to access up to 10 million tweets
+per month [@twitterdocs].
+
+While access to the data of commercial entities is one concern, the
+other is the level of transparency about how user data may be influenced
+by personalised engagement algorithms that prioritise the content that
+people see on their 'timelines' or 'newsfeeds', such that they do not
+genuinely represent the time-ordered content being produced by others [@kim2017social]. 
+This is commercially sensitive information, and
+so is unlikely to ever be shared, but has the potential to highly
+influence the types of user engagement data we receive to construct
+digital phenotypes. This may include the content users interact with, the
+political leaning of the content being shown to users, or the overall
+emotional valence of the content being displayed. Changes in the
+algorithms used by Google's search function have been attributed to the
+lack of replicability of the highly influential piece on the prediction
+of flu trends using data from Google Trends in 2009 [@lazer2014parable].
+
+#### Summary
+
+The current limitations of social media data available for mental health research
+all present challenges to the use of these data for making robust inferences.
+Some of these challenges, such as data quality, may be more straightforward
+for the research community to address than the possibility of influencing the
+corporations that generate the data for our use. 
+However, it is important that we consider how the data that we use may
+impact the effectiveness of the digital phenotypes we are attempting to generate.
+
+
+### Twitter
+
+Having considered the different data types available from social media that
+can be useful for inferring mental health from social media, as well as the 
+limitations that researchers currently face in attempting to use these 
+methodologies, I will now also give a more detailed description of 
+the specific social media site that this thesis focusses on, Twitter. 
+
+Twitter was publicly launched in July 2006. It is based around the
+concept of 'micro-blogging', where users can use their accounts to
+broadcast short messages to other users; these messages are known as
+*tweets*. At the time of writing tweets are limited to 280 characters in
+length, which was increased from 140 in 2017. Tweets will be displayed
+on the personal feed of those who follow the user that created them.
+Tweets were originally text based, but now can also include attachments in
+the form of images, videos or links. 
+There are various ways that users can interact on Twitter which are
+outlined in Table \@ref(tab:twitterterms). 
+All of replies, likes and retweets/quote tweets come
+under what Twitter calls 'public metrics' and the numbers of each are
+displayed underneath every tweet [@twitterdocs].
+As well as individual interactions Twitter also aims to summarise
+what is 'trending' on the site by automatically generating lists of tweets that
+refer to particular topics or hashtags that are popular in real time.
+
+```{r twitterterms, echo=FALSE}
+
+library(kableExtra)
+
+bind_rows(
+   c("Interaction type" = "Like", "Meaning" = "Any user can like another's tweet. A user's liked tweets are stored in a list on their profile."),
+   c("Interaction type" = "Reply", "Meaning" = "Users can reply to another user's tweet (or their own), which are then presented as a chain of tweets representing a conversation. A reply is a tweet itself, and generally includes an @-mention at the beginning of the user/s being replied to."),
+   c("Interaction type" = "Retweet", "Meaning" = "Users can reshare a tweet from another user to their own followers. The original tweet data is shared with the tweet, including the total number of likes, replies and retweets it has recieved. This is considered to be a type of tweet on a users profile, and so is returned in any API searches for a user's tweets unless filtered out."),
+   c("Interaction type" = "Quote", "Meaning" = "Quotes were introduced in 2020, and are retweets with the added functionality of allowing users to reshare tweets with their own comments attached to them. Similarly to retweets these are considered their own types of tweet."), 
+   c("Interaction type" = "@-mention", "Meaning" = "This refers to when another user is referenced in a user's tweet. This is done by writing an `@` symbol followed by the username of the other user, and creates a hyperlink to that user's profile in published tweet. Users are notified of any mentions."), 
+    c("Interaction type" = "Hashtag", "Meaning" = "A hashtag is written into a tweet by a user, and uses the symbol ('#') followed by a word or phase (with no spaces). This is used to link tweets which are concerned with a particular topic, theme or event.")
+) %>%
+  kableExtra::kbl(format = "latex", booktabs=TRUE,
+      caption = "A summary of different types of interaction available on Twitter and the particular meaning and nomenclature associated with these interaction types.") %>%
+  kable_styling(full_width = FALSE,
+                latex_options = "striped") %>%
+  column_spec(2, width = "30em")
+```
+
+
+User connections on Twitter can be represented by a directed network, in
+that a user may *follow* another user so that tweets of the followed
+user will appear on the feed of the user that followed them, but not
+vice-versa unless they are followed in return. This is unlike platforms
+such as Facebook where a connection with another person creates a
+reciprocal link between the two accounts. This feature of Twitter means
+that accounts can follow very high numbers of people, whilst being
+followed by very few people and reciprocally accounts can be followed by
+very high numbers of people and follow few. It is possible for Twitter
+accounts to be made private, which means that the user must approve all
+requests to be followed, and their tweets will only be viewed by
+approved followers. This also means their tweets cannot be retweeted or
+included in collections of tweets containing specific hashtags. Tweets
+from private accounts will also not appear on Twitter's public
+Application Programming Interface (API) [@twitterdocs].
+An additional privacy feature was introduced in 2020 that allows users
+to restrict who can reply to their tweets, even if they have a public
+account, so that only people they follow or only people mentioned in the
+tweet can reply. This feature was introduced to combat ongoing issues of
+targeted abuse experienced by many users [@twitterconversations].
+
+All of these data described, from tweet text to social interactions to public metrics of 
+tweets, are provided by Twitter's public API, with Twitter
+making a specific Academic API available early in 2021 which allows
+those conducting verified research projects to access up to ten million
+tweets per month [@twitterdocs]. The Academic API also accounts for
+previous concerns about Twitter data, which were that only 3,200 tweets
+were available from each individuals history, and that when collecting
+historic data it was not clear whether the full set of tweets were being
+shared or only a pseudo-random sub-sample. Now, the new API guarantees
+all data is shared that matches the parameters set by a query, provided
+the payload is within the overall monthly limit.
+These features make Twitter one of the most accessible social media sites
+available to conduct research with.
+
+The most recently published review of the use of social media for mental health
+inference showed that Twitter is by far the most used platform for this type
+of research, with the review finding 30 studies using Twitter data compared to six
+and four for Facebook and Instagram respectively [@chancellor2020methods]. 
+This is likely to be due at least partly to the accessibility of Twitter data, 
+as discussed in Section \@ref(dataaccess).
+
+### Summary
+
+Overall this section has summarised what social media is, and why it can be a useful
+source of digital footprint data when attempting to derive digital phenotypes for
+mental health. This is because social media contains features like language,
+datetime data, information on social connections and also visual content, all of 
+which have been shown to be useful in the prediction of mental health outcomes at
+both tweet and user level.
+
+## Questions of ethics {#introethics}
+
+Alongside our attempts to approach the practice and technical challenges
+we face in social media research, the ethical use of internet-based data
+for research is a matter of ongoing discussion and development
+[@hibbin2018fair]. Research ethics is a pillar of the responsible
+research process, and has been for decades
+[@stilgoe2013framework; @belmontreport1979; @tribunal1996nuremberg].
+However, the many years that academics have spent forming boundaries for
+acceptable research in the medical and psychological sciences does not
+always neatly translate to new forms of research that take place
+primarily online, even though we can still frame these through the lens
+of the basic ethical principles of respect for persons, beneficence and
+justice set out in the Belmont Report [@belmontreport1979].
+
+Internet-based data gives researchers an opportunity like never before
+to understand the lives of thousands of people with minimal data
+collection effort. Given this ready access to the data of such huge
+volumes of people one of the primary ethical concerns about the use of
+internet-based data is the lack of informed consent from those whose
+data is being collected and used [@bps2021ethics]. Ethical questions
+often tread a difficult line between what is acceptable and what is
+legal, and in the earlier stages of internet-based research it was more
+common to consider data that was publicly available on the internet as
+implying consent for its use by anyone who could access it
+[@air2020ethics; @bps2021ethics]. This does not explicitly undermine
+research ethics procedures, and also at the time did not go against
+guidance since it did not require any interaction with human
+participants. However, as time has gone on we have developed a more
+sophisticated approach to the complex public/private nature of internet
+data [@air2020ethics; @bps2021ethics]. We are now more aware of the fact
+that data that is publicly available is not necessarily intended to be
+public by those who produced it [@townsend2016social; @hibbin2018fair]
+and that even though terms of service for social media platforms
+stipulate that data may be shared this is not broadly understood by
+users [@proferes2017information]. For instance, in a study by Williams
+and colleagues in 2017 [@williams2017towards] around 80% of Twitter
+users expected that researchers would ask for their consent to use their
+data in published outputs. Similar results from a separate
+study in 2018 [@fiesler2018participant] found that most Twitter users
+would expect to be aware that they were 'participating' in a study, and
+that their decision on whether or not the use of their data was ethical
+was highly contextual. Williams et al. [@williams2017towards] also found
+that there were different reactions from participants depending on the
+identity of the user and whether the organisation using their public
+Twitter data was the state, a commercial entity or a research
+institution. For instance, those identifying as LGBTQ+ or female had
+higher concern about the state collecting and using their data, and were
+more likely to expect to give informed consent [@williams2017towards].
+
+The issue of open research and reproducibility also becomes
+particularly contentious with internet-based data, since openly sharing a 
+research dataset might mean sharing inferences about individuals' mental health (accurate or not)
+that have been made to construct training data, alongside their username or
+the text of their tweets which can easily be traced back to their profile, 
+and sometimes their real-world identities [@bps2021ethics; @air2020ethics]. 
+Researchers also need to take care of
+how they reproduce tweets in research papers, even when care is taken to
+reword direct quotes so that they cannot be traced back, as this also
+risks disclosing the identities of individuals [@townsend2016social].
+Another issue is the inability of researchers to monitor participant
+'participation' in their studies; in traditional designs it is generally
+clear when someone has withdrawn from a study, or intends to, but on the
+internet this may look like people later deleting content that has
+already been collected by the research team [@bps2021ethics]. If this
+data is stored longer term for re-use or reproducibility it creates a
+permanence which goes against the decision of the original content
+creator to delete it.
+
+Today there are a variety of ethical guidelines available from
+organisations such as the British Psychological Society
+[@bps2021ethics], and the Association for Internet Researchers
+[@air2020ethics] which specifically tackle these issues in internet
+based research. These guidelines recognise the additional risk that is
+generated by researchers interacting with and analysing data,
+deriving insights that were not previously transparent from the data,
+the need for careful consideration of the anonymity of those whose data
+is included, and also the potentially high exposure to distressing
+content online that could adversely affect researchers
+[@bps2021ethics; @air2020ethics]. As it currently stands, many social
+media or web-scraping studies do not require ethical
+approval by research institutions, and so the responsibility for
+behaving ethically (and the definition of what this means) is largely down to individual researchers and
+research groups. Even if a study does reach the threshold for ethical approval, those on the boards of research ethics
+committees do not always have a nuanced awareness of the ethical risks
+of internet-mediated research [@hibbin2018fair].
+
+Ethical concerns about mental health inference from social media also
+inherit dilemmas from the field of machine learning and artificial
+intelligence (AI), which are currently grappling with the concerning lack of
+representation in digital data, and the direct impact of this on the
+fairness[^3] of algorithmic systems [@birhane2021algorithmicinjustice].
+Sampling bias in social media-based research is likely to impact on the
+potentials of systems to work effectively, both in terms of those who do
+and do not use the internet, and also how the samples we are using
+to train these systems might poorly represent the general population
+[@sloan2015tweets]. There are also ongoing concerns about the autonomy
+of those who may eventually use these systems, and how algorithmic
+inferences will be taken into account in the contexts they are used;
+this is especially important in the case of children and vulnerable
+adults [@wies2021digital]. Lastly, there continue to be significant
+questions raised about the applications of these tools in the real
+world. There is no question that such tools could be used with malicious
+intent, and this risk rises when they are solely based on open-source
+data and so could be reproduced and applied outside of their intended
+settings which especially applies to social media sites like Twitter and
+Reddit [@chancellor2019taxonomy]. As mentioned in Section \@ref(ds4mh), similar
+technologies in emotion AI are already being deployed and used for
+surveillance purposes [@crawford2021time].
+
+In summary, there are significant ethical concerns in this field at
+present, with informed consent and the fairness and accountability
+of developed systems often at the core. These are concerns that can only be
+fully addressed by having a thorough understanding of, and consent from,
+our underlying samples. In order for this to happen without slowing the
+progress of the field we need to find methods for dataset creation and
+sharing that are safe, secure and align similar measures. Other fields,
+most notably genetics, have faced and addressed similar concerns by
+forming international consortia that allow for researchers to
+collaborate with much larger samples than individual research groups had
+access to [@byrd2020responsible]. A similar approach could be the answer
+for digital phenotyping too.
+
+## Data linkage with social media {#introlinkage}
+
+So far I have discussed some of the current challenges that we face in
+making the best use of social media as a digital phenotype, such as the
+lack of effective ground truth data, challenges accessing the data at
+all or with an appropriate level of informed consent. The best way to
+address these challenges is likely to be by appreciating social media
+data as a complement to traditional data sources, and so linking social
+media data with new or existing survey data [@stier2020integrating].
+This linkage would provide the ground truth evidence needed to make
+sense of social media data, as well as ensuring this could be done with
+the full and informed consent of those taking part.
+
+*Data linkage*, also called *record linkage*, refers to the process of
+combining two or more previously unassociated datasets from the same
+population, and attempting to match the records from each dataset that
+belong to the same person [@doidgequality2021]. Data linkage has become
+an increasingly popular methodology as populations have amassed and
+stored more and more data across multiple distinct systems, and is
+particularly relevant across administrative and health data sources
+since it allows for powerful understanding of outcomes that could not be
+measured in other ways [@bohensky2010data]. One of the aims of mental
+health data science, especially in the UK, is to leverage on data
+linkage improvements in order to make use of large-scale administrative
+data [@mcintosh2016data]. There have been many recent innovations in
+this area. For instance, Pearson and colleagues [@pearson2021linking]
+linked data about mothers whose children had been subject to care
+proceedings with their NHS mental health records and found that
+two-thirds of these women had received mental health care, with the
+majority of these being seen under secondary or tertiary services which
+indicates severe mental health concerns. Other examples are large-scale
+linkage projects which house multiple datasets, like the Secure
+Anonymised Information Linkage (SAIL) Databank which enables anonymised
+access to linked data across primary care services, education, the fire
+service and more [@jones2019profile].
+
+Whilst data linkage is an incredibly powerful technique for uncovering
+new patterns and knowledge, it is not always straightforward to achieve,
+with the effectiveness of linkage programmes being highly dependent on
+the common fields available across the datasets being linked, leading to
+varying margins of error [@bohensky2010data; @doidgequality2021]. There
+are three main methodologies for data linkage which depend on these
+common fields; these are *deterministic*, *probabilistic* and *machine
+learning based approaches* [@doidgequality2021]. Deterministic linkage
+applies when there is a single unique identifier that is recorded in
+both datasets, probabilistic and machine learning methods are applied
+when such an identifier does not exist and instead records are attempted
+to be linked with combinations of other fields such as names and dates
+of birth [@doidgequality2021]. One of the benefits of linking social
+media data is that it depends on a straightforward deterministic method
+of linkage by asking for a unique username or identifier on the social
+media platform, or for the user to directly authorise access through an
+OAuth flow. On the whole we would expect this method to generate minimal
+error, with the main potential for mistakes to come from misspelled
+usernames, intentionally false usernames or in instances of a one-to-many
+account ownership so that a single person might have multiple
+social media accounts on the same platform which are not all captured.
+By linking social media data to high quality ground truth data we start
+to be able to realise the potential for social media data as a detailed
+longitudinal record of human behaviour, and thus to develop effective
+digital phenotypes from it.
+
+Of course, there are studies that have conducted online surveys for the
+purpose of collecting ground truth data for social media mental health
+inference [@chancellor2020methods], but relatively few that use existing
+surveys as an opportunistic means to request data linkage with social
+media in representative samples. Mneimneh and colleagues
+[@mneimneh2021evaluating] evaluated the consent rate to requesting data
+linkage at the end of existing mental health surveys in the US, Belgium
+and Saudi Arabi. Their evaluation found that between 20-36% of their
+survey respondents were Twitter users, and of those that were, 24%, 27%
+and 45% of people in the US, Belgium and Saudi Arabia consented to their
+Twitter data being linked. Notably, the Saudi Arabian survey was the
+only one that was face-to-face, which may have had an impact on the high
+consent rate. The team also found that the demographics and health
+features of those that consented was largely similar to those who did
+not consent, but that those who reported more sensitive information in
+the surveys were more likely to consent as were more frequent Twitter
+users. These findings were similar to two other previous studies that
+attempted to link Twitter and survey data
+[@henderson2019measuring; @al2020linking], had similar consent rates as
+well as Twitter users, and also found that consent rates were higher
+when consent was requested in a face-to-face context.
+
+The studies conducted in this area so far show promising potential for
+Twitter data to be linked to existing survey data, and that while even
+though consent remains relatively low, it does not appear to be biased
+by demographic characteristics
+[@mneimneh2021evaluating; @al2020linking]. By linking data in an
+observational study design, rather than one specifically intending to
+predict mental health, we also have the opportunity to explore many
+other variables that may not typically be collected. A limitation of
+these studies however is that they have been specific to data collected
+in panel samples at particular time points; this means that the
+individuals sampled and with linked data may not be followed up again in
+the future, or have previous data available at other survey time points.
+Cohort studies are an alternative model of longitudinal, population
+representative data collection that would allow for longitudinal data
+comparison, as well as being able to make use of typically expensive or
+time-intensive variables that have been collected over many years such
+as neuroimaging, genetic or health record data. These would be
+challenging financially and practically to collect all at one time point
+for an individual study. I will go on to discuss the potential for
+cohort studies to deliver particular benefit if they can be used
+successfully to link and store digital phenotypes.
+
+## The case for cohort studies
+
+In Sections \@ref(ds4mh) and \@ref(smandmh) I have laid out the exciting potential for social
+media to complement current innovations in mental health
+early-intervention, monitoring and treatment, as well as outlining the
+practical difficulties in obtaining data from robust and
+well-characterised samples so that we can conduct reproducible and
+high-quality science. In Section \@ref(introethics) I have discussed the additional
+challenge of using social media in an ethical way with appropriate
+consent from those whose data is being collected, and in Section \@ref(introlinkage) I
+have summarised the emerging practice of linking social media and health
+survey data to overcome some of these difficulties, but acknowledge the
+challenge of collecting rich longitudinal information. In this section, I make
+the case that cohort studies are a promising vehicle for addressing these
+limitations, and introduce the Avon Longitudinal Study of Parents and
+Children which is the focus of this thesis.
+
+### High quality ground truth data
+
+Cohort studies, also known as *Longitudinal Panel Studies* (LPS), are
+observational research studies that prospectively follow the same group
+of people, a cohort, over time. Cohort studies are a particularly
+important resource due to their ability to track changes within
+individuals over time, and the opportunity to observe the aetiology of
+diseases and their progression using data measured before and after a
+disease has developed, and in those who may or may not have exposures of
+interest [@webb2017essential]. These studies may start from the time
+that the participants are born, known as *birth cohort studies*, and may
+be representative of a local or national population, known as
+*population-based cohort studies*. Cohort studies usually run for long
+periods of time, and collect data over many years about their
+participants, resulting in abundant datasets that characterise their
+cohort in significant detail. In Section 3 I discussed the limitation of
+single-survey point collection of ground truth; Russ et al.
+[@russ2019data] hypothesise that effective screening tools for mental
+health "would need to use longitudinal clinical assessments and social
+context, alongside physiological, genetic and imaging data where
+available" to make the best possible guess of whether intervention is
+needed and likely to be useful to the patient in a clinical context.
+These kinds of data would be extremely challenging to collect in any
+context outside of a cohort, given that they require substantial
+resources and participant time. In a cohort however we can make use of
+the fact that these resource-intensive data sources already exist, and
+in many cases exist longitudinally, and so are ready to be linked and
+used alongside new data sources [@MedicalResearchCouncil2014]. Not only can we
+use the core cohort data, but we can also make use of the cohort as a
+central hub for multiple data linkage projects, which could allow us to
+link data from administrative or health datasets with digital phenotypes
+via the study. The availability of this data gives us an excellent basis
+for high-quality ground truth data for research, with which we can
+accurately test algorithms in population representative samples.
+
+Reciprocally, linked digital data generated by our day-to-day activity
+can supplement traditional research methods, and particularly the rich
+data already available in cohort studies, to maximise the utility of the
+data already collected [@gillan2021smartphones; @MedicalResearchCouncil2014].
+Attrition and missing waves are a considerable issue in long term
+studies, with it being highly unlikely that any individual in a cohort
+successfully completes every single data collection exercise. By using
+digital phenotypes that involve passive data collection without any
+effort on the part of participants we may be able to supplement the data
+they provide in other ways, and fill periods of missing time with
+valuable information that they generate through other means than surveys
+[@MedicalResearchCouncil2014].
+
+### Ethical data collection and sharing
+
+While there are many ethical concerns about using social media data, as
+discussed in Section 3, linked data in cohorts can help researchers to
+address these. Specifically on the themes of consent, disclosure,
+security and archiving as laid out by Sloan et al. [@sloan2019linking],
+cohorts can ensure that there is appropriate consent in place for the
+linkage of this data, that disclosure is managed by the cohort team with
+an emphasis on protecting the privacy of participants, and that only
+anonymised and relevant data is released to researchers. Archiving can
+also be managed with specialised software built for the use of cohorts
+(see Epicosm [@epicosm]), and led by dedicated data management teams
+that are already established within the cohorts, and experienced in
+managing and handling sensitive, disclosive data. The long running
+nature of cohort studies and their ongoing dialogue with participants
+does also mean that consent can be handled more flexibly than in other
+contexts, with participants able to choose to opt-in or opt-out over
+time, so that the data provided to researchers will reflect this change
+in their wishes for their data to be included.
+
+The existing infrastructure for cohort studies and their data management
+teams may also enable the facilitation of wider data harmonisation and
+sharing practices among existing consortia. For instance, the Cohort and
+Longitudinal Studies Enhancement Resources (CLOSER) consortium that
+currently facilitates data harmonisation, linkage and sharing across 19
+UK longitudinal studies, including ALSPAC[^4].
+
+Whilst cohorts are in theory a promising place to conduct data linkage,
+there are still outstanding questions on how to do this sensitively with
+respect to the cohort participants. Cohort participants, due to the
+long-term nature of the studies, have established relationships with
+their studies and sometimes with the study staff. They continue to allow
+the study to collect their data because they trust that it will be used
+for the good of others, and that it will be kept safe. As a result, it
+is very important to ensure that data linkage projects in cohorts are
+undertaken with the general support of the cohort, and that participant
+data is used in a way that they find acceptable [@MedicalResearchCouncil2014]. If
+we can develop a framework that allows this to happen, then we may be
+able to start drawing on this potential.
+
+### The Avon Longitudinal Study of Parents and Children
+
+The Avon Longitudinal Study of Parents and Children (ALSPAC) is a
+prospective, population based, multi-generational cohort study that
+began with the recruitment of pregnant women resident in Avon, UK
+[@boyd2013cohort; @fraser2013cohort; @northstone2019avon]. At the 
+time of writing, the index cohort of participants are
+approximately thirty years old.
+The health and development of the index
+children and their parents have been followed since the initial pregnancies. 
+Within ALSPAC the original pregnant women and their partners
+are referred to as **G**eneration Zero (G0) and the index children as
+**G**eneration One (G1). There are also now **G**eneration Two (G2) participants
+enrolled in ALSPAC, who are the offspring of the G1 participants.
+
+Specifically, ALSPAC recruited 14,541 G0 pregnant women who were resident in Avon, UK
+with expected dates of delivery from 1st April 1991 to 31st December 1992. Of
+these initial pregnancies there were a total of 14,676 foetuses,
+resulting in 14,062 G1 live births and 13,988 children who were alive at
+1 year of age. Additional offspring that were eligible to enrol in the
+study have been welcomed through major recruitment drives at the ages of
+7 and 18 years, and through opportunistic contacts since the age of 7. A
+total of 913 additional G1 participants have been enrolled in the study
+since the age of 7 years with 195 of these joining since the age of 18.
+This additional enrolment provides a baseline sample of 14,901 G1
+participants who were alive at 1 year of age. On top of the G1 cohort,
+the G0 mothers and their partners are also participants in the study,
+and have been followed longitudinally since the time that they were
+recruited. 
+
+The types of data available in ALSPAC are vast, and can be
+explored through the variable search tool available online [^6]. 
+These data range from genetic profiling to placenta samples to
+annual surveys of behaviour and life events. ALSPAC also has an
+extensive data linkage programme, with a history of working closely with
+participants to establish limits of acceptability and to build trust in
+the cohort's approach to sharing their data [@Audrey2016].
+Given the range of data available, and the variation in the exact sample
+that participated in each data collection event I have described the
+precise characteristics of the sample used in each chapter individually.
+
+ALSPAC is an ideal cohort with which to conduct novel social media
+data linkage for a variety of reasons. 
+First, the G1 cohort at the age of thirty represent a generation of children
+who grew up in the early stages of the internet, and who have seen the
+development of social media throughout their young adulthood. Their age
+group comprise the highest proportion, 38.5%, of Twitter users
+world-wide [^5], and so they are a viable cohort to approach for social
+media, and specifically Twitter, data linkage.
+Second, this linkage project
+is an opportunity for the cohort to align with strategic priorities 
+for population cohorts from the Medical Research Council [@MedicalResearchCouncil2014] and the 
+Welcome Trust [@welcome2017strategy], who are keen for new types of data linkage to
+be used in order to maximise the value of existing cohort data.
+Third, the ALSPAC management and data teams are experienced at working with ALSPAC participants 
+and researchers to enable innovative data linkage strategies, which have
+also included the exploration of transactional data linkage [@Audrey2016; @shiells2022participant]. 
+
+## Summary
+
+In Sections \@ref(ds4mh) to \@ref(introlinkage) of this introduction I have 
+described some of the latest innovations in the
+field of mental health data science, but have also illustrated that
+there are many outstanding areas which require better evidence to inform
+more robust inferences about the links between social media and mental
+health. I have posited that cohort studies are an efficient means of
+addressing these limitations, given the vast amounts of individual level
+data available for linkage that are also available longitudinally. This
+being said, there are certain challenges related to linking data in a
+cohort that require investigation, such as whether enough people use the
+platforms in question, whether this type of linkage is acceptable, and
+whether the population of people who are willing to consent to data
+linkage are representative of the population we are interested in
+studying. This thesis is concerned with testing these questions, and
+also then exploring whether social media that is linked in a cohort
+study can actually help us to achieve the aim of better characterising
+training samples, and conducting mental health data science that gives
+us the ability to make more robust conclusions about the role social
+media can play in mental health inference.
+
+[^1]: https://www.wsj.com/articles/apple-wants-iphones-to-help-detect-depression-cognitive-decline-sources-say-11632216601
+
+[^2]: In fact, a review into racial bias in medical devices was
+    announced by the UK Health Secretary in November 2021
+    https://www.bbc.co.uk/news/uk-59363544
+
+[^3]: It is worth acknowledging that there is not one single definition
+    of *fairness* in algorithmic systems, much like there are varying
+    definitions of what it means to be ethical.
+
+[^4]: https://www.closer.ac.uk/explore-the-studies/
+
+[^5]: https://www.statista.com/statistics/283119/age-distribution-of-global-twitter-users/
+
+[^6]: http://variables.alspac.bris.ac.uk/

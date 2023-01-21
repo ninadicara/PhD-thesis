@@ -1,0 +1,17 @@
+.DS_Store
+.Rproj.user/
+drafts-and-ideas/
+.Rhistory
+Thesis.Rproj
+
+# Auto-generated folders by bookdown
+_book/
+_bookdown_files/
+libs/
+
+thesis.log
+thesis.rds
+
+
+# Folders I don't want to be tracked
+data/

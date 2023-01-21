@@ -1,0 +1,24 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: >-
+  Mental health data science in rich longitudinal cohort
+  studies
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Nina H.
+    family-names: Di Cara
+    email: nina.dicara@bristol.ac.uk
+identifiers:
+  - type: doi
+    value: 10.17605/OSF.IO/HYD9G
+    description: Online Supplementary Materials
+repository-code: 'https://github.com/ninadicara/PhD-thesis'
+repository-artifact: >-
+  https://research-information.bris.ac.uk/en/studentTheses/mental-health-data-science-in-rich-longitudinal-cohort-studies
+license: GPL-3.0
+date-released: '2022-09-27'
